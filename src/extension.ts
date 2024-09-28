@@ -11,7 +11,7 @@ export function activate(context: vscode.ExtensionContext) {
     async () => {
       const editor = vscode.window.activeTextEditor;
       if (editor) {
-        await highlightSecretsInEditor(editor);
+        await highlightRisksInEditor(editor);
       } else {
         vscode.window.showInformationMessage("No active editor");
       }
@@ -24,31 +24,36 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(async (editor) => {
       if (editor) {
-        // Wait for the editor to be fully ready
-        setTimeout(async () => {
-          await highlightSecretsInEditor(editor);
-        }, 100);
+        await highlightRisksInEditor(editor);
       }
     }),
   );
 
-  // Highlight secrets when a file is saved
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument(async (document) => {
       const editor = vscode.window.activeTextEditor;
       if (editor && editor.document === document) {
-        await highlightSecretsInEditor(editor);
+        await highlightRisksInEditor(editor);
+      }
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument(async (event) => {
+      const editor = vscode.window.activeTextEditor;
+      if (editor && editor.document === event.document) {
+        await highlightRisksInEditor(editor);
       }
     }),
   );
 
   // Initial highlight for the active editor
   if (vscode.window.activeTextEditor) {
-    highlightSecretsInEditor(vscode.window.activeTextEditor);
+    highlightRisksInEditor(vscode.window.activeTextEditor);
   }
 }
 
-async function highlightSecretsInEditor(editor: vscode.TextEditor) {
+async function highlightRisksInEditor(editor: vscode.TextEditor) {
   try {
     await riskHighlighter.highlightRisk(editor);
   } catch (error: any) {

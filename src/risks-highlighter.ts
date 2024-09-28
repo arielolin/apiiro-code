@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { findRisks } from "./api";
 import * as path from "path";
 import { Risk } from "./types/risk";
+import { detectLineChanges, hasFileDiffedFromRemote } from "./utils/git";
 
 export class RiskHighlighter {
   private risksDecoration: vscode.TextEditorDecorationType;
@@ -24,43 +25,73 @@ export class RiskHighlighter {
       }
 
       const risks = await findRisks(relativeFilePath);
-      this.applyHighlights(editor, risks);
+      await this.applyHighlights(editor, risks, relativeFilePath);
     } catch (error) {
       this.handleError("Error highlighting risks", error);
     }
   }
 
-  private applyHighlights(editor: vscode.TextEditor, risks: Risk[]): void {
-    const groupedRisks = this.groupRisksByLine(risks);
-    const decorations = this.createDecorations(editor, groupedRisks);
+  public removeAllHighlights(editor: vscode.TextEditor): void {
+    editor.setDecorations(this.risksDecoration, []);
+    vscode.window.showInformationMessage(
+      "All risk highlights have been removed.",
+    );
+  }
 
+  private async applyHighlights(
+    editor: vscode.TextEditor,
+    risks: Risk[],
+    relativeFilePath: string,
+  ): Promise<void> {
+    const groupedRisks = await this.groupRisksByLine(risks, relativeFilePath);
+    const decorations = await this.createDecorations(editor, groupedRisks);
+    this.removeAllHighlights(editor);
     editor.setDecorations(this.risksDecoration, decorations);
 
     this.showRiskSummary(decorations.length);
   }
 
-  private groupRisksByLine(risks: Risk[]): Map<number, Risk[]> {
-    return risks.reduce((acc, risk) => {
-      const lineNumber = risk.codeReference.lineNumber;
-      if (!acc.has(lineNumber)) {
-        acc.set(lineNumber, []);
+  async groupRisksByLine(
+    risks: Risk[],
+    relativeFilePath: string,
+  ): Promise<Map<number, Risk[]>> {
+    const groupedRisks = new Map<number, Risk[]>();
+
+    for (const risk of risks) {
+      let lineNumber = risk.codeReference.lineNumber;
+
+      try {
+        const { newLineNum } = await detectLineChanges(
+          relativeFilePath,
+          risk.codeReference.lineNumber,
+        );
+
+        lineNumber = newLineNum ?? lineNumber;
+      } catch (error) {
+        console.error("Error detecting line changes:", error);
+        // If there's an error, we'll use the original line number
       }
-      acc.get(lineNumber)!.push(risk);
-      return acc;
-    }, new Map<number, Risk[]>());
+
+      if (!groupedRisks.has(lineNumber)) {
+        groupedRisks.set(lineNumber, []);
+      }
+      groupedRisks.get(lineNumber)!.push(risk);
+    }
+
+    return groupedRisks;
   }
 
-  private createDecorations(
+  private async createDecorations(
     editor: vscode.TextEditor,
     groupedRisks: Map<number, Risk[]>,
-  ): vscode.DecorationOptions[] {
+  ): Promise<vscode.DecorationOptions[]> {
     const decorations: vscode.DecorationOptions[] = [];
 
-    groupedRisks.forEach((risks, lineNumber) => {
+    for (const [lineNumber, risks] of groupedRisks.entries()) {
       try {
         const range = editor.document.lineAt(lineNumber - 1).range;
         const uniqueRiskTypes = [...new Set(risks.map((r) => r.riskType))];
-        const hoverMessage = this.createHoverMessage(risks);
+        const hoverMessage = await this.createHoverMessage(risks);
         const contentText = this.createContentText(uniqueRiskTypes);
 
         decorations.push({
@@ -71,12 +102,14 @@ export class RiskHighlighter {
       } catch (error) {
         this.handleError(`Invalid line number ${lineNumber}`, error);
       }
-    });
+    }
 
     return decorations;
   }
 
-  private createHoverMessage(risks: Risk[]): vscode.MarkdownString {
+  private async createHoverMessage(
+    risks: Risk[],
+  ): Promise<vscode.MarkdownString> {
     const message = risks
       .map((risk) => {
         const creationTime = new Date(risk.documentCreationTime);
@@ -109,13 +142,14 @@ export class RiskHighlighter {
 
         return `## 🚨 ${risk.riskType} Risk Detected
 
-- **Risk Level:** <span color="${riskLevelColor}">${risk.riskLevel}</span>
-- **Short Summary:** ${risk.shortSummary}
-- **Creation Time:** ${creationTime.toLocaleString()}
-- **Due Date:** <span color="${dueDateColor}">${dueDate.toLocaleString()}</span>
-- **Business Impact:** ${risk.businessImpact}
+        - **Risk Level:** <span style="color: ${riskLevelColor}">${risk.riskLevel}</span>
+        - **Short Summary:** ${risk.shortSummary}
+        - **Creation Time:** ${creationTime.toLocaleString()}
+        - **Due Date:** <span style="color: ${dueDateColor}">${dueDate.toLocaleString()}</span>
+        - **Business Impact:** ${risk.businessImpact}
 
----`;
+
+        ---`;
       })
       .join("\n\n");
 

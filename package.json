@@ -7,15 +7,15 @@
     "vscode": "^1.93.0"
   },
   "categories": [
-    "Other"
+    "Other" 
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished"  
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": []
-  },
+  },   
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "webpack",
@@ -31,7 +31,7 @@
     "@types/mocha": "^10.0.7",
     "@types/node": "20.x",
     "@types/vscode": "^1.93.0",
-    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0", 
     "@typescript-eslint/parser": "^6.15.0",
     "@vscode/test-cli": "^0.0.4",
     "@vscode/test-electron": "^2.3.8",
