@@ -5,59 +5,16 @@ import { promisify } from "util";
 const execAsync = promisify(exec);
 
 interface LineChangeInfo {
+  originalLineNumber: number;
   hasChanged: boolean;
   hasMoved: boolean;
   newLineNum: number | null;
 }
 
-export async function hasFileDiffedFromRemote(
-  filePath: string,
-): Promise<boolean> {
-  try {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (!workspaceFolder) {
-      vscode.window.showErrorMessage("No workspace folder found");
-      throw new Error("No workspace folder found");
-    }
-
-    console.log("Workspace folder:", workspaceFolder);
-
-    // Fetch the latest changes
-    await runGitCommand(`cd "${workspaceFolder}" && git fetch origin`);
-    vscode.window.showErrorMessage(
-      `cd "${workspaceFolder}" && git fetch origin`,
-    );
-
-    vscode.window.showErrorMessage(
-      `cd "${workspaceFolder}" && git diff --name-only origin/main -- "${filePath}"`,
-    );
-    // Get the diff
-    const diffOutput = await runGitCommand(
-      `cd "${workspaceFolder}" && git diff --name-only origin/main -- "${filePath}"`,
-    );
-
-    const hasDiffed = diffOutput.trim().length > 0;
-    console.log(
-      `File ${filePath} has ${hasDiffed ? "diffed" : "not diffed"} from remote`,
-    );
-
-    vscode.window.showErrorMessage(
-      `File ${filePath} has ${hasDiffed ? "diffed" : "not diffed"} from remote`,
-    );
-
-    return hasDiffed;
-  } catch (error) {
-    console.error("Error checking if file has diffed from remote:", error);
-    //@ts-ignore
-    vscode.window.showErrorMessage(`Error: ${error.message}`);
-    throw error;
-  }
-}
-
 export async function detectLineChanges(
   filePath: string,
-  lineNumber: number,
-): Promise<LineChangeInfo> {
+  lineNumbers: number[],
+): Promise<LineChangeInfo[]> {
   let logInfo: string[] = [];
 
   try {
@@ -66,7 +23,9 @@ export async function detectLineChanges(
       throw new Error("No workspace folder found");
     }
 
-    logInfo.push(`Input - filePath: ${filePath}, lineNumber: ${lineNumber}`);
+    logInfo.push(
+      `Input - filePath: ${filePath}, lineNumbers: ${lineNumbers.join(", ")}`,
+    );
 
     // Fetch the latest changes
     await runGitCommand(`cd "${workspaceFolder}" && git fetch origin`);
@@ -77,17 +36,20 @@ export async function detectLineChanges(
     );
 
     logInfo.push(`Diff output length: ${diffOutput.length}`);
-    logInfo.push(`Full diff output: ${diffOutput}`); // Sanity check: print full diff output
+    logInfo.push(`Full diff output: ${diffOutput}`);
 
     const lines = diffOutput.split("\n");
     logInfo.push(`Number of diff lines: ${lines.length}`);
 
-    let hasChanged = false;
-    let hasMoved = false;
-    let newLineNum: number | null = null;
+    let results: LineChangeInfo[] = lineNumbers.map((lineNumber) => ({
+      originalLineNumber: lineNumber,
+      hasChanged: false,
+      hasMoved: false,
+      newLineNum: lineNumber,
+    }));
+
     let currentOldLineNum = 1;
     let currentNewLineNum = 1;
-    let totalLinesAdded = 0;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -106,15 +68,16 @@ export async function detectLineChanges(
             `Hunk details - Old Start: ${hunkOldStart}, Old Lines: ${hunkOldLines}, New Start: ${hunkNewStart}, New Lines: ${hunkNewLines}, Lines Added: ${linesAddedInHunk}`,
           );
 
-          // Check if the target line is affected by this hunk
-          if (lineNumber > hunkOldStart) {
-            hasChanged = true;
-            totalLinesAdded += linesAddedInHunk;
-            newLineNum = lineNumber + totalLinesAdded;
-            logInfo.push(
-              `Target line affected by hunk - Original: ${lineNumber}, New: ${newLineNum}, Total lines added: ${totalLinesAdded}`,
-            );
-          }
+          // Adjust the newLineNum for all affected lines
+          results.forEach((result) => {
+            if (hunkOldStart <= result.originalLineNumber) {
+              result.newLineNum =
+                (result.newLineNum as number) + linesAddedInHunk;
+              logInfo.push(
+                `Adjusting newLineNum for line ${result.originalLineNumber}. New value: ${result.newLineNum}`,
+              );
+            }
+          });
 
           currentOldLineNum = hunkOldStart;
           currentNewLineNum = hunkNewStart;
@@ -123,12 +86,16 @@ export async function detectLineChanges(
         }
       } else if (line.startsWith("-")) {
         logInfo.push(`Removed line ${currentOldLineNum}: ${line}`);
-        if (currentOldLineNum === lineNumber) {
-          hasChanged = true;
-          hasMoved = false;
-          newLineNum = null;
-          logInfo.push(`Line removal detected at target line ${lineNumber}`);
-        }
+        results.forEach((result) => {
+          if (currentOldLineNum === result.originalLineNumber) {
+            result.hasChanged = true;
+            result.hasMoved = false;
+            result.newLineNum = null;
+            logInfo.push(
+              `Line removal detected at target line ${result.originalLineNumber}`,
+            );
+          }
+        });
         currentOldLineNum++;
       } else if (line.startsWith("+")) {
         logInfo.push(`Added line ${currentNewLineNum}: ${line}`);
@@ -137,26 +104,33 @@ export async function detectLineChanges(
         logInfo.push(
           `Unchanged line ${currentOldLineNum} -> ${currentNewLineNum}: ${line}`,
         );
-        if (currentOldLineNum === lineNumber && !hasChanged) {
-          newLineNum = currentNewLineNum;
-          logInfo.push(
-            `Target line unchanged - Original: ${lineNumber}, New: ${newLineNum}`,
-          );
-        }
+        results.forEach((result) => {
+          if (currentOldLineNum === result.originalLineNumber) {
+            if (currentNewLineNum !== result.newLineNum) {
+              result.hasMoved = true;
+              logInfo.push(
+                `Target line moved - Original: ${result.originalLineNumber}, New: ${currentNewLineNum}`,
+              );
+            }
+            result.newLineNum = currentNewLineNum;
+          }
+        });
         currentOldLineNum++;
         currentNewLineNum++;
       }
 
-      // Sanity check after each line
       logInfo.push(
-        `After line ${i} - Current Old: ${currentOldLineNum}, Current New: ${currentNewLineNum}, HasChanged: ${hasChanged}, NewLineNum: ${newLineNum}`,
+        `After line ${i} - Current Old: ${currentOldLineNum}, Current New: ${currentNewLineNum}`,
       );
     }
 
     // Final sanity check
-    logInfo.push(
-      `Final state - HasChanged: ${hasChanged}, HasMoved: ${hasMoved}, NewLineNum: ${newLineNum}, TotalLinesAdded: ${totalLinesAdded}`,
-    );
+    results.forEach((result) => {
+      logInfo.push(
+        //@ts-ignore
+        `Final state for line ${result.originalLineNumber} - HasChanged: ${result.hasChanged}, HasMoved: ${result.hasMoved}, NewLineNum: ${result.newLineNum}`,
+      );
+    });
 
     // Log all collected information at once with a setTimeout
     setTimeout(() => {
@@ -165,7 +139,7 @@ export async function detectLineChanges(
       );
     }, 100); // 100ms delay
 
-    return { hasChanged, hasMoved, newLineNum };
+    return results;
   } catch (error) {
     vscode.window.showErrorMessage(`Error detecting line changes: ${error}`);
     throw error;

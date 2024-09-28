@@ -41,8 +41,8 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument(async (event) => {
       const editor = vscode.window.activeTextEditor;
-      if (editor && editor.document === event.document) {
-        await highlightRisksInEditor(editor);
+      if (editor) {
+        await riskHighlighter.removeAllHighlights(editor);
       }
     }),
   );

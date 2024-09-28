@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { findRisks } from "./api";
 import * as path from "path";
 import { Risk } from "./types/risk";
-import { detectLineChanges, hasFileDiffedFromRemote } from "./utils/git";
+import { detectLineChanges } from "./utils/git";
 
 export class RiskHighlighter {
   private risksDecoration: vscode.TextEditorDecorationType;
@@ -56,26 +56,43 @@ export class RiskHighlighter {
     relativeFilePath: string,
   ): Promise<Map<number, Risk[]>> {
     const groupedRisks = new Map<number, Risk[]>();
+    const lineNumbers = risks.map((risk) => risk.codeReference.lineNumber);
 
-    for (const risk of risks) {
-      let lineNumber = risk.codeReference.lineNumber;
+    try {
+      const lineChanges = await detectLineChanges(
+        relativeFilePath,
+        lineNumbers,
+      );
 
-      try {
-        const { newLineNum } = await detectLineChanges(
-          relativeFilePath,
-          risk.codeReference.lineNumber,
-        );
+      for (let i = 0; i < risks.length; i++) {
+        const risk = risks[i];
+        const { hasChanged, newLineNum } = lineChanges[i];
+        const lineNumber = newLineNum ?? risk.codeReference.lineNumber;
 
-        lineNumber = newLineNum ?? lineNumber;
-      } catch (error) {
-        console.error("Error detecting line changes:", error);
-        // If there's an error, we'll use the original line number
+        if (hasChanged) {
+          // If the line has changed, we don't include it in the groupedRisks
+          if (groupedRisks.has(lineNumber)) {
+            groupedRisks.delete(lineNumber);
+          }
+          continue;
+        }
+
+        if (!groupedRisks.has(lineNumber)) {
+          groupedRisks.set(lineNumber, []);
+        }
+
+        groupedRisks.get(lineNumber)!.push(risk);
       }
-
-      if (!groupedRisks.has(lineNumber)) {
-        groupedRisks.set(lineNumber, []);
+    } catch (error) {
+      console.error("Error detecting line changes:", error);
+      // If there's an error, we'll use the original line numbers
+      for (const risk of risks) {
+        const lineNumber = risk.codeReference.lineNumber;
+        if (!groupedRisks.has(lineNumber)) {
+          groupedRisks.set(lineNumber, []);
+        }
+        groupedRisks.get(lineNumber)!.push(risk);
       }
-      groupedRisks.get(lineNumber)!.push(risk);
     }
 
     return groupedRisks;
