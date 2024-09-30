@@ -1,72 +1,64 @@
 export interface Risk {
+  remediationSuggestion: { nearestFixVersion: string };
   id: string;
-  array: string[];
-  documentCreationTime: string; // ISO 8601 date string
-  profileCalculationId: null;
-  repositoryStatuses: string[];
-  cweIdentifiers: any[]; // Empty array in the image
-  elementType: string;
-  elementKey: string;
-  shortSummary: string;
-  triggerKey: string;
-  riskCalculationId: string[];
   riskLevel: string;
   riskStatus: string;
-  ruleRiskLevel: string;
-  processTags: string[];
-  tags: string[];
-  codeOwnershipTarget: string;
   ruleName: string;
-  ruleSummary: string;
-  riskName: string;
-  profileKey: string;
-  profileType: string;
-  firstDetected: string; // ISO 8601 date string
-  sentMessages: null;
-  createdIssues: null;
-  riskType: string;
   riskCategory: string;
-  fingerprint: string;
-  businessImpact: string;
-  sources: any[]; // Array with one item in the image
-  codeReference: {
-    systemReference: string;
-    relativePath: string;
-    lineNumber: number;
-    lastLineInFile: number;
-  };
-  repositoryReference: {
-    repositoryKey: string;
-    httpCloneUrl: string;
-    httpRoute: string;
-    methodName: string;
-    methodSignature: string;
-    className: string;
-    moduleName: string;
-    serverUrl: string;
-    projectId: string;
-  };
-  discoveredAt: string; // ISO 8601 date string
-  simpleRanges: any[]; // Array with 3 items in the image
-  dueDate: string; // ISO 8601 date string
-  primaryDataModelReference: {
-    findingName: null;
-    displayName: null;
-    alias: null;
-    confidence: null;
-    staticityMetadata: {
+  component: string;
+  discoveredOn: string;
+  insights: any[]; // You might want to define a more specific type for insights
+  apiiroRiskUrl: string;
+
+  source: Array<{
+    name: string;
+    url: string;
+  }>;
+  entity: {
+    details: {
+      branchName: string;
+      businessImpact: string;
+      isArchived: boolean;
       key: string;
+      monitoringStatus: {
+        ignoredBy: string | null;
+        ignoredOn: string | null;
+        ignoreReason: string | null;
+        status: string;
+      };
       name: string;
-      staticityKey: string;
+      privacySettings: string;
+      profileUrl: string;
+      repositoryGroup: string;
+      riskLevel: string;
+      serverUrl: string;
+      url: string;
     };
+    type: string;
   };
-  actionsTaken: any[]; // Empty array in the image
-  artifactKey: null;
-  profileKeys: string[];
-  riskId: string;
-  riskStatusNumeric: number;
-  httpRoute: string;
-  httpMethod: string;
-  language: string;
-  vulnerabilityTags: any[]; // Empty array in the image
+  applications: Array<{
+    apiiroUrl: string;
+    businessImpact: string;
+    id: string;
+    name: string;
+  }>;
+  applicationGroups: Array<{
+    apiiroUrl: string;
+    businessImpact: string;
+    id: string;
+    name: string;
+  }>;
+  sourceCode: {
+    filePath: string;
+    lineNumber: number;
+    url: string;
+  };
+  contributors: Array<{
+    email: string;
+    name: string;
+    reason: string;
+  }>;
+  actionsTaken: any[]; // You might want to define a more specific type for actionsTaken
+  findingCategory: string;
+  findingName: string | null;
 }

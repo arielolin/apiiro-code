@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
-import { findRisks } from "./api";
+import { findRisks } from "../api";
 import * as path from "path";
-import { Risk } from "./types/risk";
-import { detectLineChanges } from "./utils/git";
+import { Risk } from "../types/risk";
+import { detectLineChanges } from "./git";
 
 export class RiskHighlighter {
   private risksDecoration: vscode.TextEditorDecorationType;
@@ -56,7 +56,7 @@ export class RiskHighlighter {
     relativeFilePath: string,
   ): Promise<Map<number, Risk[]>> {
     const groupedRisks = new Map<number, Risk[]>();
-    const lineNumbers = risks.map((risk) => risk.codeReference.lineNumber);
+    const lineNumbers = risks.map((risk) => risk.sourceCode.lineNumber);
 
     try {
       const lineChanges = await detectLineChanges(
@@ -67,7 +67,7 @@ export class RiskHighlighter {
       for (let i = 0; i < risks.length; i++) {
         const risk = risks[i];
         const { hasChanged, newLineNum } = lineChanges[i];
-        const lineNumber = newLineNum ?? risk.codeReference.lineNumber;
+        const lineNumber = newLineNum ?? risk.sourceCode.lineNumber;
 
         if (hasChanged) {
           // If the line has changed, we don't include it in the groupedRisks
@@ -87,7 +87,7 @@ export class RiskHighlighter {
       console.error("Error detecting line changes:", error);
       // If there's an error, we'll use the original line numbers
       for (const risk of risks) {
-        const lineNumber = risk.codeReference.lineNumber;
+        const lineNumber = risk.sourceCode.lineNumber;
         if (!groupedRisks.has(lineNumber)) {
           groupedRisks.set(lineNumber, []);
         }
@@ -107,7 +107,7 @@ export class RiskHighlighter {
     for (const [lineNumber, risks] of groupedRisks.entries()) {
       try {
         const range = editor.document.lineAt(lineNumber - 1).range;
-        const uniqueRiskTypes = [...new Set(risks.map((r) => r.riskType))];
+        const uniqueRiskTypes = [...new Set(risks.map((r) => r.riskCategory))];
         const hoverMessage = await this.createHoverMessage(risks);
         const contentText = this.createContentText(uniqueRiskTypes);
 
@@ -124,49 +124,26 @@ export class RiskHighlighter {
     return decorations;
   }
 
-  private async createHoverMessage(
-    risks: Risk[],
-  ): Promise<vscode.MarkdownString> {
+  private createHoverMessage(risks: Risk[]): vscode.MarkdownString {
     const message = risks
       .map((risk) => {
-        const creationTime = new Date(risk.documentCreationTime);
-        const dueDate = new Date(risk.dueDate);
-        const now = new Date();
+        const creationTime = new Date(risk.discoveredOn).toLocaleString();
+        const riskLevelColor = this.getRiskLevelColor(risk.riskLevel);
+        const encodedRisk = encodeURIComponent(JSON.stringify(risk));
+        return `## 🚨 ${risk.riskCategory} Risk Detected
 
-        let dueDateColor = "green";
-        if (dueDate < now) {
-          dueDateColor = "red";
-        } else if (
-          dueDate.getTime() - now.getTime() <
-          7 * 24 * 60 * 60 * 1000
-        ) {
-          // 7 days
-          dueDateColor = "yellow";
-        }
+**Risk Level:** <span style="color: ${riskLevelColor}">${risk.riskLevel}</span>
 
-        let riskLevelColor = "blue";
-        switch (risk.riskLevel.toLowerCase()) {
-          case "low":
-            riskLevelColor = "green";
-            break;
-          case "medium":
-            riskLevelColor = "yellow";
-            break;
-          case "high":
-            riskLevelColor = "red";
-            break;
-        }
+**Policy:** ${risk.ruleName}
 
-        return `## 🚨 ${risk.riskType} Risk Detected
+**Creation Time:** ${creationTime}
 
-        - **Risk Level:** <span style="color: ${riskLevelColor}">${risk.riskLevel}</span>
-        - **Short Summary:** ${risk.shortSummary}
-        - **Creation Time:** ${creationTime.toLocaleString()}
-        - **Due Date:** <span style="color: ${dueDateColor}">${dueDate.toLocaleString()}</span>
-        - **Business Impact:** ${risk.businessImpact}
+**Business Impact:** ${risk.entity.details.businessImpact}
 
 
-        ---`;
+[Remediate](command:apiiro-code.remediate?${encodedRisk})\`;
+
+---`;
       })
       .join("\n\n");
 
@@ -174,6 +151,19 @@ export class RiskHighlighter {
     markdownMessage.isTrusted = true;
     markdownMessage.supportHtml = true;
     return markdownMessage;
+  }
+
+  private getRiskLevelColor(riskLevel: string): string {
+    switch (riskLevel.toLowerCase()) {
+      case "low":
+        return "green";
+      case "medium":
+        return "yellow";
+      case "high":
+        return "red";
+      default:
+        return "blue";
+    }
   }
 
   private createContentText(riskTypes: string[]): string {
