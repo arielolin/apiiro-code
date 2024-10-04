@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { findRisks } from "../api";
 import { Risk } from "../types/risk";
 import { detectLineChanges } from "./git";
-import { getRelativeFilePath } from "./text-editor";
+import { getRelativeFilePath } from "../utils/vs-code";
 
 export class RiskHighlighter {
   private risksDecoration: vscode.TextEditorDecorationType;
@@ -51,16 +51,12 @@ export class RiskHighlighter {
     this.showRiskSummary(decorations.length);
   }
 
-  async groupRisksByLine(
-    risks: Risk[],
-  ): Promise<Map<number, Risk[]>> {
+  async groupRisksByLine(risks: Risk[]): Promise<Map<number, Risk[]>> {
     const groupedRisks = new Map<number, Risk[]>();
     const lineNumbers = risks.map((risk) => risk.sourceCode.lineNumber);
 
     try {
-      const lineChanges = await detectLineChanges(
-        lineNumbers
-      );
+      const lineChanges = await detectLineChanges(lineNumbers);
 
       for (let i = 0; i < risks.length; i++) {
         const risk = risks[i];

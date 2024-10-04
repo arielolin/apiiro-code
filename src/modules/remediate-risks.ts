@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
 import { detectLineChanges } from "./git";
-import { getRelativeFilePath } from "./text-editor";
 
 export async function remediateRisk(editor: vscode.TextEditor, risk: any) {
   try {
@@ -16,9 +15,9 @@ export async function remediateRisk(editor: vscode.TextEditor, risk: any) {
       lineChanges?.[0]?.newLineNum ?? parseInt(risk.sourceCode.lineNumber);
 
     const document = editor.document;
-    const componentName = risk.component.split(); 
+    const componentName = risk.component.split();
     const depKey = risk.component.split(":")[0];
-    const fixVersion = risk.remediationSuggestion.nearestFixVersion; 
+    const fixVersion = risk.remediationSuggestion.nearestFixVersion;
 
     console.log(
       `Attempting to update ${componentName} to version ${fixVersion}`,
