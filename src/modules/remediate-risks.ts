@@ -6,10 +6,8 @@ export async function remediateRisk(editor: vscode.TextEditor, risk: any) {
     if (!editor) {
       throw new Error("No active text editor");
     }
-    //@ts-ignore
-    const lineChanges = await detectLineChanges(getRelativeFilePath(editor), [
-      risk.sourceCode.lineNumber,
-    ]);
+
+    const lineChanges = await detectLineChanges([risk.sourceCode.lineNumber]);
 
     const lineNumber =
       lineChanges?.[0]?.newLineNum ?? parseInt(risk.sourceCode.lineNumber);
