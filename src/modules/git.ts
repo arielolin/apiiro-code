@@ -3,8 +3,10 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import * as diff from "diff";
 import * as path from "path";
+import NodeCache from "node-cache";
 
 const execAsync = promisify(exec);
+const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
 
 interface LineChangeInfo {
   originalLineNumber: number;
@@ -33,7 +35,11 @@ export async function detectLineChanges(
     const relativeFilePath = path.relative(workspacePath, absoluteFilePath);
 
     // Fetch the latest changes
-    await runGitCommand(workspacePath, "git fetch origin");
+    const fetchOrigin = cache.get("fetchOrigin");
+    if (!fetchOrigin) {
+      await runGitCommand(workspacePath, "git fetch origin");
+      cache.set("fetchOrigin", true);
+    }
 
     // Get the content of the file in the main branch
     let mainContent: string;
