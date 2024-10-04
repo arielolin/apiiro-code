@@ -1,8 +1,10 @@
 import axios from "axios";
 import vscode from "vscode";
 import { Risk } from "./types/risk";
+import NodeCache from "node-cache";
 
 const API_BASE_URL = "https://app-staging.apiiro.com/rest-api/v1";
+const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
 
 function getApiToken(): string | null {
   const config = vscode.workspace.getConfiguration("apiiroCode");
@@ -31,6 +33,13 @@ function createAxiosInstance() {
 }
 
 export async function findRisks(relativeFilePath: string): Promise<Risk[]> {
+  const cacheKey = `risks_${relativeFilePath}`;
+  const cachedRisks = cache.get<Risk[]>(cacheKey);
+  if (cachedRisks) {
+    vscode.window.showInformationMessage("Retrieved risks from cache");
+    return cachedRisks;
+  }
+
   const axiosInstance = createAxiosInstance();
   if (!axiosInstance) {
     return [];
@@ -68,19 +77,17 @@ export async function findRisks(relativeFilePath: string): Promise<Risk[]> {
       },
     };
 
-    
     const ossCount = ossResponse.data.items?.length || 0;
     const secretsCount = secretsResponse.data.items?.length || 0;
     vscode.window.showInformationMessage(
       `Retrieved ${ossCount} OSS risks and ${secretsCount} Secrets risks`
     );
 
-    
-
     if (response.data && response.data.items) {
       vscode.window.showInformationMessage(
         `Retrieved ${response.data.items.length} risks`,
       );
+      cache.set(cacheKey, response.data.items);
       return response.data.items;
     } else {
       console.error("Unexpected response structure:", response.data);
