@@ -43,7 +43,7 @@ export class RiskHighlighter {
     risks: Risk[],
     relativeFilePath: string,
   ): Promise<void> {
-    const groupedRisks = await this.groupRisksByLine(risks, relativeFilePath);
+    const groupedRisks = await this.groupRisksByLine(risks);
     const decorations = await this.createDecorations(editor, groupedRisks);
     this.removeAllHighlights(editor);
     editor.setDecorations(this.risksDecoration, decorations);
@@ -53,15 +53,13 @@ export class RiskHighlighter {
 
   async groupRisksByLine(
     risks: Risk[],
-    relativeFilePath: string,
   ): Promise<Map<number, Risk[]>> {
     const groupedRisks = new Map<number, Risk[]>();
     const lineNumbers = risks.map((risk) => risk.sourceCode.lineNumber);
 
     try {
       const lineChanges = await detectLineChanges(
-        relativeFilePath,
-        lineNumbers,
+        lineNumbers
       );
 
       for (let i = 0; i < risks.length; i++) {

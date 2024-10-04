@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import { exec } from "child_process";
 import { promisify } from "util";
+import * as diff from "diff";
+import * as path from "path";
 
 const execAsync = promisify(exec);
 
@@ -12,132 +14,105 @@ interface LineChangeInfo {
 }
 
 export async function detectLineChanges(
-  filePath: string,
   lineNumbers: number[],
 ): Promise<LineChangeInfo[]> {
-  let logInfo: string[] = [];
-
   try {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (!workspaceFolder) {
-      throw new Error("No workspace folder found");
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      throw new Error("No active text editor");
     }
 
-    logInfo.push(
-      `Input - filePath: ${filePath}, lineNumbers: ${lineNumbers.join(", ")}`,
-    );
+    const document = editor.document;
+    const absoluteFilePath = document.uri.fsPath;
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    if (!workspaceFolder) {
+      throw new Error("File is not part of a workspace");
+    }
+
+    const workspacePath = workspaceFolder.uri.fsPath;
+    const relativeFilePath = path.relative(workspacePath, absoluteFilePath);
 
     // Fetch the latest changes
-    await runGitCommand(`cd "${workspaceFolder}" && git fetch origin`);
+    await runGitCommand(workspacePath, "git fetch origin");
 
-    // Get the diff with line numbers and detect moves
-    const diffOutput = await runGitCommand(
-      `cd "${workspaceFolder}" && git diff -M --color-moved=zebra -U0 origin/main -- "${filePath}"`,
+    // Get the content of the file in the main branch
+    let mainContent: string;
+    try {
+      mainContent = await runGitCommand(workspacePath, `git show origin/main:"${relativeFilePath}"`);
+    } catch (error) {
+      console.log(`File not found in main branch: ${error}`);
+      mainContent = ""; // Treat as empty file if not found in main branch
+    }
+
+    // Get the content of the current file from the active editor
+    const currentContent = document.getText();
+
+    // Calculate the diff
+    const diffResult = diff.structuredPatch(
+      "main",
+      "current",
+      mainContent,
+      currentContent,
+      "",
+      ""
     );
-
-    logInfo.push(`Diff output length: ${diffOutput.length}`);
-    logInfo.push(`Full diff output: ${diffOutput}`);
-
-    const lines = diffOutput.split("\n");
-    logInfo.push(`Number of diff lines: ${lines.length}`);
 
     let results: LineChangeInfo[] = lineNumbers.map((lineNumber) => ({
       originalLineNumber: lineNumber,
-      hasChanged: false,
+      hasChanged: mainContent === "", // If main content is empty, all lines are new
       hasMoved: false,
       newLineNum: lineNumber,
     }));
 
-    let currentOldLineNum = 1;
-    let currentNewLineNum = 1;
+    if (mainContent !== "") {
+      let lineMapping = new Map<number, number>();
+      let currentOldLine = 1;
+      let currentNewLine = 1;
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      logInfo.push(`Processing Line ${i}: ${line}`);
-
-      if (line.startsWith("@@")) {
-        const match = line.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
-        if (match) {
-          const hunkOldStart = parseInt(match[1], 10);
-          const hunkOldLines = parseInt(match[2] || "1", 10);
-          const hunkNewStart = parseInt(match[3], 10);
-          const hunkNewLines = parseInt(match[4] || "1", 10);
-          const linesAddedInHunk = hunkNewLines - hunkOldLines;
-
-          logInfo.push(
-            `Hunk details - Old Start: ${hunkOldStart}, Old Lines: ${hunkOldLines}, New Start: ${hunkNewStart}, New Lines: ${hunkNewLines}, Lines Added: ${linesAddedInHunk}`,
-          );
-
-          // Adjust the newLineNum for all affected lines
-          results.forEach((result) => {
-            if (hunkOldStart <= result.originalLineNumber) {
-              result.newLineNum =
-                (result.newLineNum as number) + linesAddedInHunk;
-              logInfo.push(
-                `Adjusting newLineNum for line ${result.originalLineNumber}. New value: ${result.newLineNum}`,
-              );
-            }
-          });
-
-          currentOldLineNum = hunkOldStart;
-          currentNewLineNum = hunkNewStart;
-        } else {
-          logInfo.push(`WARNING: Failed to parse hunk header: ${line}`);
+      for (const hunk of diffResult.hunks) {
+        // Map unchanged lines before the hunk
+        while (currentOldLine < hunk.oldStart) {
+          lineMapping.set(currentOldLine, currentNewLine);
+          currentOldLine++;
+          currentNewLine++;
         }
-      } else if (line.startsWith("-")) {
-        logInfo.push(`Removed line ${currentOldLineNum}: ${line}`);
-        results.forEach((result) => {
-          if (currentOldLineNum === result.originalLineNumber) {
-            result.hasChanged = true;
-            result.hasMoved = false;
-            result.newLineNum = null;
-            logInfo.push(
-              `Line removal detected at target line ${result.originalLineNumber}`,
-            );
+
+        for (const line of hunk.lines) {
+          if (line.startsWith('-')) {
+            // Removed line
+            currentOldLine++;
+          } else if (line.startsWith('+')) {
+            // Added line
+            currentNewLine++;
+          } else {
+            // Unchanged line
+            lineMapping.set(currentOldLine, currentNewLine);
+            currentOldLine++;
+            currentNewLine++;
           }
-        });
-        currentOldLineNum++;
-      } else if (line.startsWith("+")) {
-        logInfo.push(`Added line ${currentNewLineNum}: ${line}`);
-        currentNewLineNum++;
-      } else {
-        logInfo.push(
-          `Unchanged line ${currentOldLineNum} -> ${currentNewLineNum}: ${line}`,
-        );
-        results.forEach((result) => {
-          if (currentOldLineNum === result.originalLineNumber) {
-            if (currentNewLineNum !== result.newLineNum) {
-              result.hasMoved = true;
-              logInfo.push(
-                `Target line moved - Original: ${result.originalLineNumber}, New: ${currentNewLineNum}`,
-              );
-            }
-            result.newLineNum = currentNewLineNum;
-          }
-        });
-        currentOldLineNum++;
-        currentNewLineNum++;
+        }
       }
 
-      logInfo.push(
-        `After line ${i} - Current Old: ${currentOldLineNum}, Current New: ${currentNewLineNum}`,
-      );
+      // Map any remaining unchanged lines
+      while (currentOldLine <= mainContent.split('\n').length) {
+        lineMapping.set(currentOldLine, currentNewLine);
+        currentOldLine++;
+        currentNewLine++;
+      }
+
+      // Update results based on the mapping
+      results.forEach(result => {
+        const newLineNum = lineMapping.get(result.originalLineNumber);
+        if (newLineNum === undefined) {
+          result.hasChanged = true;
+          result.hasMoved = false;
+          result.newLineNum = null;
+        } else {
+          result.newLineNum = newLineNum;
+          result.hasMoved = newLineNum !== result.originalLineNumber;
+        }
+      });
     }
-
-    // Final sanity check
-    results.forEach((result) => {
-      logInfo.push(
-        //@ts-ignore
-        `Final state for line ${result.originalLineNumber} - HasChanged: ${result.hasChanged}, HasMoved: ${result.hasMoved}, NewLineNum: ${result.newLineNum}`,
-      );
-    });
-
-    // Log all collected information at once with a setTimeout
-    setTimeout(() => {
-      vscode.window.showInformationMessage(
-        `Line Change Detection Log:\n${logInfo.join("\n")}`,
-      );
-    }, 100); // 100ms delay
 
     return results;
   } catch (error) {
@@ -146,11 +121,11 @@ export async function detectLineChanges(
   }
 }
 
-async function runGitCommand(command: string): Promise<string> {
-  console.log(`Running command: ${command}`);
+async function runGitCommand(cwd: string, command: string): Promise<string> {
+  console.log(`Running command in ${cwd}: ${command}`);
   try {
-    const { stdout } = await execAsync(command);
-    return stdout;
+    const { stdout } = await execAsync(command, { cwd });
+    return stdout.trim();
   } catch (error) {
     console.error(`Error running git command: ${command}`, error);
     throw error;
