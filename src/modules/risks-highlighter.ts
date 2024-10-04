@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 import { findRisks } from "../api";
-import * as path from "path";
 import { Risk } from "../types/risk";
 import { detectLineChanges } from "./git";
+import { getRelativeFilePath } from "./text-editor";
 
 export class RiskHighlighter {
   private risksDecoration: vscode.TextEditorDecorationType;
@@ -19,7 +19,7 @@ export class RiskHighlighter {
 
   public async highlightRisk(editor: vscode.TextEditor): Promise<void> {
     try {
-      const relativeFilePath = this.getRelativeFilePath(editor);
+      const relativeFilePath = getRelativeFilePath(editor);
       if (!relativeFilePath) {
         throw new Error("Unable to determine relative file path");
       }
@@ -178,17 +178,6 @@ export class RiskHighlighter {
     } else {
       vscode.window.showInformationMessage("No risks detected");
     }
-  }
-
-  private getRelativeFilePath(editor: vscode.TextEditor): string | null {
-    const currentFilePath = editor.document.uri.fsPath;
-    const workspaceFolder = vscode.workspace.getWorkspaceFolder(
-      editor.document.uri,
-    );
-
-    return workspaceFolder
-      ? path.relative(workspaceFolder.uri.fsPath, currentFilePath)
-      : null;
   }
 
   private handleError(message: string, error: unknown): void {

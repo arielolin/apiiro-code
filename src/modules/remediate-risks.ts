@@ -1,16 +1,24 @@
 import * as vscode from "vscode";
+import { detectLineChanges } from "./git";
+import { getRelativeFilePath } from "./text-editor";
 
 export async function remediateRisk(editor: vscode.TextEditor, risk: any) {
   try {
     if (!editor) {
       throw new Error("No active text editor");
     }
+    //@ts-ignore
+    const lineChanges = await detectLineChanges(getRelativeFilePath(editor), [
+      risk.sourceCode.lineNumber,
+    ]);
+
+    const lineNumber =
+      lineChanges?.[0]?.newLineNum ?? parseInt(risk.sourceCode.lineNumber);
 
     const document = editor.document;
-    const componentName = risk.component.split(); // e.g., "axios"
+    const componentName = risk.component.split(); 
     const depKey = risk.component.split(":")[0];
-    const fixVersion = risk.remediationSuggestion.nearestFixVersion; // e.g., "0.24.1"
-    const lineNumber = parseInt(risk.sourceCode.lineNumber); // Line number from the Risk object
+    const fixVersion = risk.remediationSuggestion.nearestFixVersion; 
 
     console.log(
       `Attempting to update ${componentName} to version ${fixVersion}`,

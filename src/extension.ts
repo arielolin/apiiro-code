@@ -1,13 +1,15 @@
 import * as vscode from "vscode";
-import { RiskHighlighter } from "./risks-highlighter";
+import { RiskHighlighter } from "./modules/risks-highlighter";
+import { remediateRisk } from "./modules/remediate-risks";
 
 let riskHighlighter: RiskHighlighter;
+let filePanel: vscode.WebviewPanel | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
   riskHighlighter = new RiskHighlighter(context);
 
-  const disposable = vscode.commands.registerCommand(
-    "apiiro-code.highlightSecrets",
+  const highlightDisposable = vscode.commands.registerCommand(
+    "apiiro-code.highlightRisks",
     async () => {
       const editor = vscode.window.activeTextEditor;
       if (editor) {
@@ -18,7 +20,18 @@ export function activate(context: vscode.ExtensionContext) {
     },
   );
 
-  context.subscriptions.push(disposable);
+  const remediateDisposable = vscode.commands.registerCommand(
+    "apiiro-code.remediate",
+    async (risk) => {
+      const editor = vscode.window.activeTextEditor;
+      if (editor) {
+        await remediateRisk(editor, risk);
+      }
+    },
+  );
+
+  context.subscriptions.push(highlightDisposable);
+  context.subscriptions.push(remediateDisposable);
 
   // Highlight secrets when a file is opened
   context.subscriptions.push(
@@ -62,6 +75,17 @@ async function highlightRisksInEditor(editor: vscode.TextEditor) {
   }
 }
 
+function escapeHtml(unsafe: string) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 export function deactivate() {
-  // Clean up resources if needed
+  if (filePanel) {
+    filePanel.dispose();
+  }
 }
