@@ -6,6 +6,7 @@ import { getRelativeFilePath } from "../utils/vs-code";
 
 export class RiskHighlighter {
   private risksDecoration: vscode.TextEditorDecorationType;
+  private diagnosticsCollection: vscode.DiagnosticCollection;
 
   constructor(context: vscode.ExtensionContext) {
     this.risksDecoration = vscode.window.createTextEditorDecorationType({
@@ -14,7 +15,9 @@ export class RiskHighlighter {
       overviewRulerLane: vscode.OverviewRulerLane.Right,
     });
 
-    context.subscriptions.push(this.risksDecoration);
+    this.diagnosticsCollection = vscode.languages.createDiagnosticCollection();
+
+    context.subscriptions.push(this.risksDecoration, this.diagnosticsCollection);
   }
 
   public async highlightRisk(editor: vscode.TextEditor): Promise<void> {
@@ -26,6 +29,7 @@ export class RiskHighlighter {
 
       const risks = await findRisks(relativeFilePath);
       await this.applyHighlights(editor, risks, relativeFilePath);
+      await this.updateDiagnostics(editor, risks);
     } catch (error) {
       this.handleError("Error highlighting risks", error);
     }
@@ -33,6 +37,7 @@ export class RiskHighlighter {
 
   public removeAllHighlights(editor: vscode.TextEditor): void {
     editor.setDecorations(this.risksDecoration, []);
+    this.diagnosticsCollection.clear();
     vscode.window.showInformationMessage(
       "All risk highlights have been removed.",
     );
@@ -49,6 +54,28 @@ export class RiskHighlighter {
     editor.setDecorations(this.risksDecoration, decorations);
 
     this.showRiskSummary(decorations.length);
+  }
+
+  private async updateDiagnostics(
+    editor: vscode.TextEditor,
+    risks: Risk[],
+  ): Promise<void> {
+    const diagnostics: vscode.Diagnostic[] = [];
+    const groupedRisks = await this.groupRisksByLine(risks);
+
+    for (const [lineNumber, risks] of groupedRisks.entries()) {
+      const range = editor.document.lineAt(lineNumber - 1).range;
+      const message = risks.map((risk) => `🚨 ${risk.riskCategory} Risk Detected: ${risk.ruleName}`).join("\n");
+
+      diagnostics.push({
+        source: 'Risk Highlighter',
+        range,
+        severity: vscode.DiagnosticSeverity.Warning,
+        message,
+      });
+    }
+
+    this.diagnosticsCollection.set(editor.document.uri, diagnostics);
   }
 
   async groupRisksByLine(risks: Risk[]): Promise<Map<number, Risk[]>> {
