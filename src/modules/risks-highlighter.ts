@@ -3,6 +3,7 @@ import { findRisks } from "../api";
 import { Risk } from "../types/risk";
 import { detectLineChanges } from "./git";
 import { getRelativeFilePath } from "../utils/vs-code";
+import { hasRemedy } from "./remediate-risks";
 
 export class RiskHighlighter {
   private risksDecoration: vscode.TextEditorDecorationType;
@@ -12,7 +13,7 @@ export class RiskHighlighter {
     this.risksDecoration = vscode.window.createTextEditorDecorationType({
       backgroundColor: "rgba(255, 0, 0, 0.3)",
       overviewRulerColor: "red",
-      overviewRulerLane: vscode.OverviewRulerLane.Right,
+      overviewRulerLane: vscode.OverviewRulerLane.Right, 
     });
 
     this.diagnosticsCollection = vscode.languages.createDiagnosticCollection();
@@ -147,26 +148,30 @@ export class RiskHighlighter {
 
   private createHoverMessage(risks: Risk[]): vscode.MarkdownString {
     const message = risks
-      .map((risk) => {
-        const creationTime = new Date(risk.discoveredOn).toLocaleString();
-        const riskLevelColor = this.getRiskLevelColor(risk.riskLevel);
-        const encodedRisk = encodeURIComponent(JSON.stringify(risk));
-        return `## 🚨 ${risk.riskCategory} Risk Detected
-
-**Risk Level:** <span style="color: ${riskLevelColor}">${risk.riskLevel}</span>
-
-**Policy:** ${risk.ruleName}
-
-**Creation Time:** ${creationTime}
-
-**Business Impact:** ${risk.entity.details.businessImpact}
-
-
-[Remediate](command:apiiro-code.remediate?${encodedRisk})\`;
-
----`;
-      })
-      .join("\n\n");
+    .map((risk) => {
+      const creationTime = new Date(risk.discoveredOn).toLocaleString();
+      const riskLevelColor = this.getRiskLevelColor(risk.riskLevel);
+      const encodedRisk = encodeURIComponent(JSON.stringify(risk));
+      
+      let remediateLink = '';
+      if (hasRemedy(risk)) {
+        remediateLink = `\n\n[Remediate](command:apiiro-code.remediate?${encodedRisk})`;
+      }
+  
+      return `## 🚨 ${risk.riskCategory} Risk Detected
+  
+  **Risk Level:** <span style="color: ${riskLevelColor}">${risk.riskLevel}</span>
+  
+  **Policy:** ${risk.ruleName}
+  
+  **Creation Time:** ${creationTime}
+  
+  **Business Impact:** ${risk.entity.details.businessImpact}
+  ${remediateLink}
+  
+  ---`;
+    })
+    .join("\n\n");
 
     const markdownMessage = new vscode.MarkdownString(message);
     markdownMessage.isTrusted = true;
