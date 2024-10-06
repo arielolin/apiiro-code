@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { detectLineChanges } from "./git";
-import { Risk } from "../types/risk";
+import { detectLineChanges } from "../git";
+import { Risk } from "../../types/risk";
 
 interface RiskRemediator {
   remediate(editor: vscode.TextEditor, risk: Risk): Promise<void>;

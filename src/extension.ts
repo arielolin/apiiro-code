@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { RiskHighlighter } from "./modules/risks-highlighter";
-import { remediateRisk } from "./modules/remediate-risks";
+import { remediateRisk } from "./modules/remediate-risks/remediate-risks";
 
 let riskHighlighter: RiskHighlighter;
 let filePanel: vscode.WebviewPanel | undefined;

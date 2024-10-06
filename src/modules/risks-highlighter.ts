@@ -3,7 +3,7 @@ import { findRisks } from "../api";
 import { Risk } from "../types/risk";
 import { detectLineChanges } from "./git";
 import { getRelativeFilePath } from "../utils/vs-code";
-import { hasRemedy } from "./remediate-risks";
+import { hasRemedy } from "./remediate-risks/remediate-risks";
 
 export class RiskHighlighter {
   private risksDecoration: vscode.TextEditorDecorationType;
@@ -29,7 +29,7 @@ export class RiskHighlighter {
       }
 
       const risks = await findRisks(relativeFilePath);
-      await this.applyHighlights(editor, risks, relativeFilePath);
+      await this.applyHighlights(editor, risks);
       await this.updateDiagnostics(editor, risks);
     } catch (error) {
       this.handleError("Error highlighting risks", error);
@@ -39,15 +39,11 @@ export class RiskHighlighter {
   public removeAllHighlights(editor: vscode.TextEditor): void {
     editor.setDecorations(this.risksDecoration, []);
     this.diagnosticsCollection.clear();
-    vscode.window.showInformationMessage(
-      "All risk highlights have been removed.",
-    );
   }
 
   private async applyHighlights(
     editor: vscode.TextEditor,
-    risks: Risk[],
-    relativeFilePath: string,
+    risks: Risk[]
   ): Promise<void> {
     const groupedRisks = await this.groupRisksByLine(risks);
     const decorations = await this.createDecorations(editor, groupedRisks);

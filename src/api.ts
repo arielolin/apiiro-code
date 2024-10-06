@@ -36,7 +36,7 @@ export async function findRisks(relativeFilePath: string): Promise<Risk[]> {
   const cacheKey = `risks_${relativeFilePath}`;
   const cachedRisks = cache.get<Risk[]>(cacheKey);
   if (cachedRisks) {
-    vscode.window.showInformationMessage("Retrieved risks from cache");
+    vscode.window.showInformationMessage(`Retrieved ${cachedRisks.length} risks from cache`);
     return cachedRisks;
   }
 
@@ -79,9 +79,11 @@ export async function findRisks(relativeFilePath: string): Promise<Risk[]> {
 
     const ossCount = ossResponse.data.items?.length || 0;
     const secretsCount = secretsResponse.data.items?.length || 0;
-    vscode.window.showInformationMessage(
-      `Retrieved ${ossCount} OSS risks and ${secretsCount} Secrets risks`
-    );
+    if (ossCount > 0 || secretsCount > 0) {
+      vscode.window.showInformationMessage(
+        `Retrieved ${ossCount > 0 ? `${ossCount} OSS risks` : ''}${ossCount > 0 && secretsCount > 0 ? ' and ' : ''}${secretsCount > 0 ? `${secretsCount} Secrets risks` : ''}`
+      );
+    }
 
     if (response.data && response.data.items) {
       vscode.window.showInformationMessage(
