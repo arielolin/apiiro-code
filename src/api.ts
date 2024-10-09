@@ -2,8 +2,10 @@ import axios from "axios";
 import vscode from "vscode";
 import { Risk } from "./types/risk";
 import NodeCache from "node-cache";
+import { Repository } from "./types/repository";
 
-const API_BASE_URL = "https://app-staging.apiiro.com/rest-api/v1";
+const REPO_API_BASE_URL = "https://app-staging.apiiro.com/rest-api/v2";
+const RISK_API_BASE_URL = "https://app-staging.apiiro.com/rest-api/v1";
 const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
 
 function getApiToken(): string | null {
@@ -18,13 +20,13 @@ function getApiToken(): string | null {
   return token as string;
 }
 
-function createAxiosInstance() {
+function createAxiosInstance(baseURL: string) {
   const token = getApiToken();
   if (!token) {
     return null;
   }
   return axios.create({
-    baseURL: API_BASE_URL,
+    baseURL,
     headers: {
       accept: "application/json",
       Authorization: `Bearer ${token}`,
@@ -32,73 +34,121 @@ function createAxiosInstance() {
   });
 }
 
-export async function findRisks(relativeFilePath: string): Promise<Risk[]> {
+export async function getRepo(
+  repoName: string,
+): Promise<Repository | undefined> {
+  const axiosInstance = createAxiosInstance(REPO_API_BASE_URL);
+  if (!axiosInstance) {
+    return;
+  }
+
+  try {
+    const params = {
+      "filters[RepositoryName]": repoName,
+      pageSize: 1,
+    };
+
+    const paramsSerializer = (params: Record<string, string>) => {
+      return Object.entries(params)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join("&");
+    };
+
+    const response = await axiosInstance.get("/repositories", {
+      params,
+      paramsSerializer,
+    });
+
+    if (
+      response.data &&
+      response.data.items &&
+      response.data.items.length > 0
+    ) {
+      return response.data.items[0];
+    } else {
+      vscode.window.showWarningMessage(`Repository "${repoName}" not found.`);
+      return;
+    }
+  } catch (error: any) {
+    console.error("API Error:", error.response?.data || error.message);
+    vscode.window.showErrorMessage(
+      `Error retrieving repository: ${error.message}`,
+    );
+    return;
+  }
+}
+
+export async function findRisks(
+  relativeFilePath: string,
+  repoData: Repository,
+): Promise<Risk[]> {
   const cacheKey = `risks_${relativeFilePath}`;
   const cachedRisks = cache.get<Risk[]>(cacheKey);
   if (cachedRisks) {
-    vscode.window.showInformationMessage(`Retrieved ${cachedRisks.length} risks from cache`);
+    vscode.window.showInformationMessage(
+      `Retrieved ${cachedRisks.length} risks from cache`,
+    );
     return cachedRisks;
   }
 
-  const axiosInstance = createAxiosInstance();
+  const axiosInstance = createAxiosInstance(RISK_API_BASE_URL);
   if (!axiosInstance) {
     return [];
   }
 
   try {
     vscode.window.showInformationMessage(
-      "Searching for risks: " + relativeFilePath,
+      `Searching for key: ${repoData.key} path:${relativeFilePath}`,
     );
     const params = {
       "filters[CodeReference]": relativeFilePath,
+      "filters[RepositoryID]": repoData.key,
     };
     const paramsSerializer = (params: Record<string, string>) => {
       return Object.entries(params)
-        .map(
-          ([key, value]) => `${key}=${encodeURIComponent(value)}`,
-        )
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
         .join("&");
     };
 
     const [ossResponse, secretsResponse] = await Promise.all([
       axiosInstance.get("/risks/oss", {
-        params: { ...params, "filters[riskCategory]": "OSS" },
+        params: {
+          ...params,
+          "filters[RiskCategory]": "OSS",
+        },
         paramsSerializer,
       }),
       axiosInstance.get("/risks/secrets", {
-        params: { ...params, "filters[riskCategory]": "Secrets" },
+        params: {
+          ...params,
+          "filters[RiskCategory]": "Secrets",
+        },
         paramsSerializer,
       }),
     ]);
 
-    const response = {
-      data: {
-        items: [...(ossResponse.data.items || []), ...(secretsResponse.data.items || [])],
-      },
-    };
+    console.log("OSS Response:", ossResponse.data); // Debug log
+    console.log("Secrets Response:", secretsResponse.data); // Debug log
 
-    const ossCount = ossResponse.data.items?.length || 0;
-    const secretsCount = secretsResponse.data.items?.length || 0;
+    const ossRisks = ossResponse.data.items || [];
+    const secretsRisks = secretsResponse.data.items || [];
+    const allRisks = [...ossRisks, ...secretsRisks];
+
+    const ossCount = ossRisks.length;
+    const secretsCount = secretsRisks.length;
     if (ossCount > 0 || secretsCount > 0) {
       vscode.window.showInformationMessage(
-        `Retrieved ${ossCount > 0 ? `${ossCount} OSS risks` : ''}${ossCount > 0 && secretsCount > 0 ? ' and ' : ''}${secretsCount > 0 ? `${secretsCount} Secrets risks` : ''}`
+        `Retrieved ${ossCount > 0 ? `${ossCount} OSS risks` : ""}${ossCount > 0 && secretsCount > 0 ? " and " : ""}${secretsCount > 0 ? `${secretsCount} Secrets risks` : ""}`,
       );
+    } else {
+      vscode.window.showInformationMessage("No risks found.");
     }
 
-    if (response.data && response.data.items) {
-      vscode.window.showInformationMessage(
-        `Retrieved ${response.data.items.length} risks`,
-      );
-      cache.set(cacheKey, response.data.items);
-      return response.data.items;
-    } else {
-      console.error("Unexpected response structure:", response.data);
-      vscode.window.showErrorMessage("Unexpected response structure from API");
-      return [];
-    }
+    cache.set(cacheKey, allRisks);
+    return allRisks;
   } catch (error: any) {
-    console.error("API Error:", error.response?.data || error.message); // Debug log
-    vscode.window.showErrorMessage("Error retrieving risks: " + error.message);
+    console.error("API Error:", error.response?.data || error.message);
+    vscode.window.showErrorMessage(`Error retrieving risks: ${error.message}`);
     return [];
   }
 }

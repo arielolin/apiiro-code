@@ -15,6 +15,24 @@ interface LineChangeInfo {
   newLineNum: number | null;
 }
 
+export async function getRepoName(workspacePath: string): Promise<string> {
+  try {
+    const remoteUrl = await runGitCommand(
+      workspacePath,
+      "git config --get remote.origin.url",
+    );
+    const match = remoteUrl.match(/\/([^\/]+)\.git$/);
+    if (match && match[1]) {
+      return match[1];
+    } else {
+      throw new Error("Unable to extract repository name from remote URL");
+    }
+  } catch (error) {
+    console.error("Error getting repository name:", error);
+    throw error;
+  }
+}
+
 export async function detectLineChanges(
   lineNumbers: number[],
 ): Promise<LineChangeInfo[]> {
@@ -44,7 +62,10 @@ export async function detectLineChanges(
     // Get the content of the file in the main branch
     let mainContent: string;
     try {
-      mainContent = await runGitCommand(workspacePath, `git show origin/main:"${relativeFilePath}"`);
+      mainContent = await runGitCommand(
+        workspacePath,
+        `git show origin/main:"${relativeFilePath}"`,
+      );
     } catch (error) {
       console.log(`File not found in main branch: ${error}`);
       mainContent = ""; // Treat as empty file if not found in main branch
@@ -60,7 +81,7 @@ export async function detectLineChanges(
       mainContent,
       currentContent,
       "",
-      ""
+      "",
     );
 
     let results: LineChangeInfo[] = lineNumbers.map((lineNumber) => ({
@@ -84,10 +105,10 @@ export async function detectLineChanges(
         }
 
         for (const line of hunk.lines) {
-          if (line.startsWith('-')) {
+          if (line.startsWith("-")) {
             // Removed line
             currentOldLine++;
-          } else if (line.startsWith('+')) {
+          } else if (line.startsWith("+")) {
             // Added line
             currentNewLine++;
           } else {
@@ -100,14 +121,14 @@ export async function detectLineChanges(
       }
 
       // Map any remaining unchanged lines
-      while (currentOldLine <= mainContent.split('\n').length) {
+      while (currentOldLine <= mainContent.split("\n").length) {
         lineMapping.set(currentOldLine, currentNewLine);
         currentOldLine++;
         currentNewLine++;
       }
 
       // Update results based on the mapping
-      results.forEach(result => {
+      results.forEach((result) => {
         const newLineNum = lineMapping.get(result.originalLineNumber);
         if (newLineNum === undefined) {
           result.hasChanged = true;

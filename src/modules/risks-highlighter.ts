@@ -4,6 +4,7 @@ import { Risk } from "../types/risk";
 import { detectLineChanges } from "./git";
 import { getRelativeFilePath } from "../utils/vs-code";
 import { hasRemedy } from "./remediate-risks/remediate-risks";
+import { Repository } from "../types/repository";
 
 export class RiskHighlighter {
   private risksDecoration: vscode.TextEditorDecorationType;
@@ -13,22 +14,28 @@ export class RiskHighlighter {
     this.risksDecoration = vscode.window.createTextEditorDecorationType({
       backgroundColor: "rgba(255, 0, 0, 0.3)",
       overviewRulerColor: "red",
-      overviewRulerLane: vscode.OverviewRulerLane.Right, 
+      overviewRulerLane: vscode.OverviewRulerLane.Right,
     });
 
     this.diagnosticsCollection = vscode.languages.createDiagnosticCollection();
 
-    context.subscriptions.push(this.risksDecoration, this.diagnosticsCollection);
+    context.subscriptions.push(
+      this.risksDecoration,
+      this.diagnosticsCollection,
+    );
   }
 
-  public async highlightRisk(editor: vscode.TextEditor): Promise<void> {
+  public async highlightRisk(
+    editor: vscode.TextEditor,
+    repoData: Repository,
+  ): Promise<void> {
     try {
       const relativeFilePath = getRelativeFilePath(editor);
       if (!relativeFilePath) {
         throw new Error("Unable to determine relative file path");
       }
 
-      const risks = await findRisks(relativeFilePath);
+      const risks = await findRisks(relativeFilePath, repoData);
       await this.applyHighlights(editor, risks);
       await this.updateDiagnostics(editor, risks);
     } catch (error) {
@@ -43,7 +50,7 @@ export class RiskHighlighter {
 
   private async applyHighlights(
     editor: vscode.TextEditor,
-    risks: Risk[]
+    risks: Risk[],
   ): Promise<void> {
     const groupedRisks = await this.groupRisksByLine(risks);
     const decorations = await this.createDecorations(editor, groupedRisks);
@@ -62,10 +69,14 @@ export class RiskHighlighter {
 
     for (const [lineNumber, risks] of groupedRisks.entries()) {
       const range = editor.document.lineAt(lineNumber - 1).range;
-      const message = risks.map((risk) => `🚨 ${risk.riskCategory} Risk Detected: ${risk.ruleName}`).join("\n");
+      const message = risks
+        .map(
+          (risk) => `🚨 ${risk.riskCategory} Risk Detected: ${risk.ruleName}`,
+        )
+        .join("\n");
 
       diagnostics.push({
-        source: 'Risk Highlighter',
+        source: "Risk Highlighter",
         range,
         severity: vscode.DiagnosticSeverity.Warning,
         message,
@@ -144,17 +155,17 @@ export class RiskHighlighter {
 
   private createHoverMessage(risks: Risk[]): vscode.MarkdownString {
     const message = risks
-    .map((risk) => {
-      const creationTime = new Date(risk.discoveredOn).toLocaleString();
-      const riskLevelColor = this.getRiskLevelColor(risk.riskLevel);
-      const encodedRisk = encodeURIComponent(JSON.stringify(risk));
-      
-      let remediateLink = '';
-      if (hasRemedy(risk)) {
-        remediateLink = `\n\n[Remediate](command:apiiro-code.remediate?${encodedRisk})`;
-      }
-  
-      return `## 🚨 ${risk.riskCategory} Risk Detected
+      .map((risk) => {
+        const creationTime = new Date(risk.discoveredOn).toLocaleString();
+        const riskLevelColor = this.getRiskLevelColor(risk.riskLevel);
+        const encodedRisk = encodeURIComponent(JSON.stringify(risk));
+
+        let remediateLink = "";
+        if (hasRemedy(risk)) {
+          remediateLink = `\n\n[Remediate](command:apiiro-code.remediate?${encodedRisk})`;
+        }
+
+        return `## 🚨 ${risk.riskCategory} Risk Detected
   
   **Risk Level:** <span style="color: ${riskLevelColor}">${risk.riskLevel}</span>
   
@@ -166,8 +177,8 @@ export class RiskHighlighter {
   ${remediateLink}
   
   ---`;
-    })
-    .join("\n\n");
+      })
+      .join("\n\n");
 
     const markdownMessage = new vscode.MarkdownString(message);
     markdownMessage.isTrusted = true;
