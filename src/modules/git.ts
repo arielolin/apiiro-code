@@ -184,6 +184,7 @@ export async function detectLineChanges(
 async function runGitCommand(cwd: string, command: string): Promise<string> {
   console.log(`Running command in ${cwd}: ${command}`);
   try {
+    //@ts-ignore
     const { stdout } = await execAsync(command, { cwd });
     return stdout.trim();
   } catch (error) {

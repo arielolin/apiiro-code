@@ -7,6 +7,7 @@ import { Repository } from "./types/repository";
 
 let filePanel: vscode.WebviewPanel | undefined;
 let repoData: Repository;
+let baseBranch: string;
 
 export async function activate(context: vscode.ExtensionContext) {
   const riskHighlighter = new RiskHighlighter(context);
@@ -24,8 +25,10 @@ export async function activate(context: vscode.ExtensionContext) {
         );
         return;
       }
-      const allMonitoredRepositories =
-        await getMonitoredRepositoriesByName(repoName);
+      const allMonitoredRepositories = await getMonitoredRepositoriesByName(
+        repoName,
+        remoteUrl,
+      );
 
       if (allMonitoredRepositories.length === 0) {
         vscode.window.showWarningMessage(
@@ -34,16 +37,27 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      const baseBranch = await vscode.window.showQuickPick(
-        allMonitoredRepositories.map((repo) => ({
-          label: repo.branchName,
-          detail: repo.name,
-        })),
-        {
-          placeHolder: "Select Base Branch",
-          matchOnDetail: true,
-        },
-      );
+      if (allMonitoredRepositories.length === 1) {
+        baseBranch = allMonitoredRepositories[0].branchName;
+      } else {
+        const branchData = await vscode.window.showQuickPick(
+          allMonitoredRepositories.map((repo) => ({
+            label: repo.branchName,
+            detail: repo.name,
+          })),
+          {
+            placeHolder: "Select Base Branch",
+            matchOnDetail: true,
+          },
+        );
+
+        if (!branchData) {
+          vscode.window.showWarningMessage("Apiiro: No base branch selected.");
+          return;
+        }
+
+        baseBranch = branchData.label;
+      }
 
       if (!baseBranch) {
         vscode.window.showWarningMessage("Apiiro: No base branch provided.");
@@ -51,7 +65,7 @@ export async function activate(context: vscode.ExtensionContext) {
       }
 
       repoData = allMonitoredRepositories.find(
-        (repo) => repo.branchName === baseBranch.label,
+        (repo) => repo.branchName === baseBranch,
       ) as Repository;
 
       if (!repoData) {
@@ -61,21 +75,7 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      repoData.branchName = baseBranch.label;
-
-      await vscode.workspace
-        .getConfiguration()
-        .update(
-          "apiiroCode.baseBranch",
-          baseBranch,
-          vscode.ConfigurationTarget.Workspace,
-        );
-
-      const baseBranchByRemoteUrl = { [remoteUrl]: baseBranch };
-      await context.globalState.update(
-        "apiiroCode.baseBranchByRemoteUrl",
-        baseBranchByRemoteUrl,
-      );
+      repoData.branchName = baseBranch;
 
       if (!repoData) {
         vscode.window.showWarningMessage(
@@ -84,7 +84,10 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     } catch (error) {
       console.error("Error getting repository name:", error);
-      vscode.window.showErrorMessage("Failed to get repository name");
+
+      vscode.window.showWarningMessage(
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 

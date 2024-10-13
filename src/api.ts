@@ -4,10 +4,11 @@ import { Risk } from "./types/risk";
 import NodeCache from "node-cache";
 import { Repository } from "./types/repository";
 import { decodeJwt } from "./utils/string";
+import { URL } from "url";
 
-const REPO_API_BASE_URL = "https://app-staging.apiiro.com/rest-api/v2";
-const RISK_API_BASE_URL = "https://app-staging.apiiro.com/rest-api/v1";
-const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
+const REPO_API_BASE_URL = `${getEnvironmentData().AppUrl}/rest-api/v2`;
+const RISK_API_BASE_URL = `${getEnvironmentData().AppUrl}/rest-api/v1`;
+const cache = new NodeCache({ stdTTL: 300 });
 
 function getApiToken(): string | null {
   const config = vscode.workspace.getConfiguration("apiiroCode");
@@ -40,8 +41,25 @@ function createAxiosInstance(baseURL: string) {
   });
 }
 
+function extractHostname(url: string): string {
+  try {
+    // Handle SSH URLs
+    if (url.startsWith("git@")) {
+      const parts = url.split("@")[1].split(":");
+      return parts[0];
+    }
+    // Handle HTTPS URLs
+    const parsedUrl = new URL(url);
+    return parsedUrl.hostname;
+  } catch (error) {
+    console.error(`Error parsing URL: ${url}`, error);
+    return "";
+  }
+}
+
 export async function getMonitoredRepositoriesByName(
   repoName: string,
+  remoteUrl: string,
 ): Promise<Repository[]> {
   const axiosInstance = createAxiosInstance(REPO_API_BASE_URL);
   if (!axiosInstance) {
@@ -69,9 +87,24 @@ export async function getMonitoredRepositoriesByName(
       response.data.items &&
       response.data.items.length > 0
     ) {
-      return response.data.items.filter(
-        (repo: Repository) => repo.name === repoName,
-      );
+      const remoteUrlHostname = extractHostname(remoteUrl);
+
+      const filteredRepos = response.data.items.filter((repo: Repository) => {
+        const repoUrlHostname = extractHostname(repo.serverUrl);
+        return repo.name === repoName && repoUrlHostname === remoteUrlHostname;
+      });
+
+      if (filteredRepos.length > 0) {
+        vscode.window.showInformationMessage(
+          `Found ${filteredRepos.length} matching repositories.`,
+        );
+        return filteredRepos;
+      } else {
+        vscode.window.showWarningMessage(
+          `No repositories found matching name "${repoName}" and URL "${remoteUrl}".`,
+        );
+        return [];
+      }
     } else {
       vscode.window.showWarningMessage(`Repository "${repoName}" not found.`);
       return [];
@@ -92,9 +125,6 @@ export async function findRisks(
   const cacheKey = `risks_${relativeFilePath}`;
   const cachedRisks = cache.get<Risk[]>(cacheKey);
   if (cachedRisks) {
-    vscode.window.showInformationMessage(
-      `Retrieved ${cachedRisks.length} risks from cache`,
-    );
     return cachedRisks;
   }
 
@@ -134,20 +164,11 @@ export async function findRisks(
       }),
     ]);
 
-    console.log("OSS Response:", ossResponse.data); // Debug log
-    console.log("Secrets Response:", secretsResponse.data); // Debug log
-
     const ossRisks = ossResponse.data.items || [];
     const secretsRisks = secretsResponse.data.items || [];
     const allRisks = [...ossRisks, ...secretsRisks];
 
-    const ossCount = ossRisks.length;
-    const secretsCount = secretsRisks.length;
-    if (ossCount > 0 || secretsCount > 0) {
-      vscode.window.showInformationMessage(
-        `Retrieved ${ossCount > 0 ? `${ossCount} OSS risks` : ""}${ossCount > 0 && secretsCount > 0 ? " and " : ""}${secretsCount > 0 ? `${secretsCount} Secrets risks` : ""}`,
-      );
-    } else {
+    if (allRisks.length === 0) {
       vscode.window.showInformationMessage("No risks found.");
     }
 
