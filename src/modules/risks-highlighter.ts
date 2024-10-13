@@ -24,7 +24,7 @@ export class RiskHighlighter {
     );
   }
 
-  public async highlightRisk(
+  public async highlightRisks(
     editor: vscode.TextEditor,
     repoData: Repository,
   ): Promise<void> {

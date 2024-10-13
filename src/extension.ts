@@ -12,7 +12,7 @@ let baseBranch: string;
 export async function activate(context: vscode.ExtensionContext) {
   const riskHighlighter = new RiskHighlighter(context);
 
-  const highlightRisk = riskHighlighter.highlightRisk.bind(riskHighlighter);
+  const highlightRisk = riskHighlighter.highlightRisks.bind(riskHighlighter);
 
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (workspaceFolders && workspaceFolders.length > 0) {
