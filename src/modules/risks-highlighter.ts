@@ -86,12 +86,34 @@ export class RiskHighlighter {
       diagnostics.push({
         source: "Risk Highlighter",
         range,
-        severity: vscode.DiagnosticSeverity.Warning,
+        severity: this.getDiagnosticSeverity(risks),
         message,
       });
     }
 
     this.diagnosticsCollection.set(editor.document.uri, diagnostics);
+  }
+
+  private getDiagnosticSeverity(risks: Risk[]): vscode.DiagnosticSeverity {
+    const highestRiskLevel = risks.reduce((highest, risk) => {
+      const riskLevels = ["critical", "high", "medium", "low"];
+      const currentIndex = riskLevels.indexOf(risk.riskLevel.toLowerCase());
+      const highestIndex = riskLevels.indexOf(highest.toLowerCase());
+      return currentIndex < highestIndex ? risk.riskLevel : highest;
+    }, "low");
+
+    switch (highestRiskLevel.toLowerCase()) {
+      case "critical":
+        return vscode.DiagnosticSeverity.Error;
+      case "high":
+        return vscode.DiagnosticSeverity.Warning;
+      case "medium":
+        return vscode.DiagnosticSeverity.Information;
+      case "low":
+        return vscode.DiagnosticSeverity.Hint;
+      default:
+        return vscode.DiagnosticSeverity.Information;
+    }
   }
 
   async groupRisksByLine(
@@ -224,8 +246,6 @@ export class RiskHighlighter {
       vscode.window.showWarningMessage(
         `Highlighted ${riskCount} potential risk${riskCount > 1 ? "s" : ""} in this file. Please review and address ${riskCount > 1 ? "them" : "it"}.`,
       );
-    } else {
-      vscode.window.showInformationMessage("No risks detected");
     }
   }
 }

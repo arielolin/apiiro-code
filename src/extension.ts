@@ -5,7 +5,6 @@ import { getMonitoredRepositoriesByName } from "./api";
 import { getRemoteUrl, getRepoName } from "./modules/git";
 import { Repository } from "./types/repository";
 
-let riskHighlighter: RiskHighlighter;
 let filePanel: vscode.WebviewPanel | undefined;
 let repoData: Repository;
 
@@ -19,8 +18,21 @@ export async function activate(context: vscode.ExtensionContext) {
     try {
       const repoName = await getRepoName(workspaceFolders[0].uri.fsPath);
       const remoteUrl = await getRemoteUrl(workspaceFolders[0].uri.fsPath);
+      if (!remoteUrl) {
+        vscode.window.showErrorMessage(
+          "Apiiro: Can't find remote URL for the current workspace.",
+        );
+        return;
+      }
       const allMonitoredRepositories =
         await getMonitoredRepositoriesByName(repoName);
+
+      if (allMonitoredRepositories.length === 0) {
+        vscode.window.showWarningMessage(
+          "Apiiro: No repositories found for the provided repository name.",
+        );
+        return;
+      }
 
       const baseBranch = await vscode.window.showQuickPick(
         allMonitoredRepositories.map((repo) => ({
@@ -34,7 +46,7 @@ export async function activate(context: vscode.ExtensionContext) {
       );
 
       if (!baseBranch) {
-        vscode.window.showWarningMessage("No base branch provided.");
+        vscode.window.showWarningMessage("Apiiro: No base branch provided.");
         return;
       }
 
@@ -44,7 +56,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
       if (!repoData) {
         vscode.window.showWarningMessage(
-          `Failed to retrieve data for repository: ${repoName}`,
+          `Apiiro: Failed to retrieve data for repository: ${repoName}`,
         );
         return;
       }

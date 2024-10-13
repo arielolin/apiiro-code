@@ -105,7 +105,7 @@ export async function findRisks(
 
   try {
     vscode.window.showInformationMessage(
-      `Searching for key: ${repoData.key} path:${relativeFilePath}`,
+      `Apiiro: Getting risks for ${relativeFilePath} in ${repoData.name}...`,
     );
     const params = {
       "filters[CodeReference]": relativeFilePath,

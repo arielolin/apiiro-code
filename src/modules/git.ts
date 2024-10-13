@@ -26,10 +26,12 @@ export async function getRepoName(workspacePath: string): Promise<string> {
     if (match && match[1]) {
       return match[1];
     } else {
-      throw new Error("Unable to extract repository name from remote URL");
+      throw new Error(
+        "Apiiro: Unable to extract repository name from remote URL",
+      );
     }
   } catch (error) {
-    console.error("Error getting repository name:", error);
+    console.error("Apiiro: Error getting repository name:", error);
     throw error;
   }
 }
@@ -51,27 +53,34 @@ export async function detectLineChanges(
   repoData: Repository,
 ): Promise<LineChangeInfo[]> {
   const baseBranch = repoData.branchName;
-  vscode.window.showInformationMessage(`base branch: ${baseBranch}`);
+  if (!baseBranch) {
+    vscode.window.showErrorMessage(
+      "Apiiro: Repository data is missing or incomplete",
+    );
+    return [];
+  }
+
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showErrorMessage("Apiiro: No active text editor");
+    return [];
+  }
+
+  const document = editor.document;
+  const absoluteFilePath = document.uri.fsPath;
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+  if (!workspaceFolder) {
+    vscode.window.showErrorMessage(`"Apiiro: File is not part of a workspace"`);
+    return [];
+  }
+
   try {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) {
-      vscode.window.showErrorMessage("No active text editor");
-      return [];
-    }
-
-    const document = editor.document;
-    const absoluteFilePath = document.uri.fsPath;
-    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-    if (!workspaceFolder) {
-      vscode.window.showErrorMessage(`"File is not part of a workspace"`);
-      return [];
-    }
-
     const workspacePath = workspaceFolder.uri.fsPath;
     const relativeFilePath = path.relative(workspacePath, absoluteFilePath);
 
     // Fetch the latest changes
     const fetchOrigin = cache.get("fetchOrigin");
+
     if (!fetchOrigin) {
       await runGitCommand(workspacePath, "git fetch origin");
       cache.set("fetchOrigin", true);
@@ -86,7 +95,9 @@ export async function detectLineChanges(
       );
     } catch (error) {
       vscode.window.showErrorMessage(
-        `File not found in ${baseBranch} branch: ${error}`,
+        error instanceof Error
+          ? error.message
+          : "Error fetching base branch content",
       );
       baseBranchContent = "";
     }
@@ -163,7 +174,9 @@ export async function detectLineChanges(
 
     return results;
   } catch (error) {
-    vscode.window.showErrorMessage(`Error detecting line changes: ${error}`);
+    vscode.window.showErrorMessage(
+      `Apiiro:Error detecting line changes: ${error}`,
+    );
     throw error;
   }
 }
