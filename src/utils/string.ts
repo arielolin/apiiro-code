@@ -20,3 +20,14 @@ function toCamelCaseString(str: string): string {
     )
     .replace(/\s+/g, "");
 }
+
+export function decodeJwt(token: string) {
+  const parts = token.split(".");
+  if (parts.length !== 3) {
+    throw new Error("Invalid JWT format");
+  }
+
+  const payload = parts[1];
+  const decodedPayload = atob(payload);
+  return JSON.parse(decodedPayload);
+}

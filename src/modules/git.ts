@@ -4,6 +4,7 @@ import { promisify } from "util";
 import * as diff from "diff";
 import * as path from "path";
 import NodeCache from "node-cache";
+import { Repository } from "../types/repository";
 
 const execAsync = promisify(exec);
 const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
@@ -33,20 +34,37 @@ export async function getRepoName(workspacePath: string): Promise<string> {
   }
 }
 
+export async function getRemoteUrl(workspacePath: string): Promise<string> {
+  try {
+    return await runGitCommand(
+      workspacePath,
+      "git config --get remote.origin.url",
+    );
+  } catch (error) {
+    console.error("Error getting remote URL:", error);
+    throw error;
+  }
+}
+
 export async function detectLineChanges(
   lineNumbers: number[],
+  repoData: Repository,
 ): Promise<LineChangeInfo[]> {
+  const baseBranch = repoData.branchName;
+  vscode.window.showInformationMessage(`base branch: ${baseBranch}`);
   try {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
-      throw new Error("No active text editor");
+      vscode.window.showErrorMessage("No active text editor");
+      return [];
     }
 
     const document = editor.document;
     const absoluteFilePath = document.uri.fsPath;
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
     if (!workspaceFolder) {
-      throw new Error("File is not part of a workspace");
+      vscode.window.showErrorMessage(`"File is not part of a workspace"`);
+      return [];
     }
 
     const workspacePath = workspaceFolder.uri.fsPath;
@@ -59,16 +77,18 @@ export async function detectLineChanges(
       cache.set("fetchOrigin", true);
     }
 
-    // Get the content of the file in the main branch
-    let mainContent: string;
+    // Get the content of the file in the base branch
+    let baseBranchContent: string;
     try {
-      mainContent = await runGitCommand(
+      baseBranchContent = await runGitCommand(
         workspacePath,
-        `git show origin/main:"${relativeFilePath}"`,
+        `git show origin/${baseBranch}:"${relativeFilePath}"`,
       );
     } catch (error) {
-      console.log(`File not found in main branch: ${error}`);
-      mainContent = ""; // Treat as empty file if not found in main branch
+      vscode.window.showErrorMessage(
+        `File not found in ${baseBranch} branch: ${error}`,
+      );
+      baseBranchContent = "";
     }
 
     // Get the content of the current file from the active editor
@@ -78,7 +98,7 @@ export async function detectLineChanges(
     const diffResult = diff.structuredPatch(
       "main",
       "current",
-      mainContent,
+      baseBranchContent,
       currentContent,
       "",
       "",
@@ -86,12 +106,12 @@ export async function detectLineChanges(
 
     let results: LineChangeInfo[] = lineNumbers.map((lineNumber) => ({
       originalLineNumber: lineNumber,
-      hasChanged: mainContent === "", // If main content is empty, all lines are new
+      hasChanged: baseBranchContent === "", // If main content is empty, all lines are new
       hasMoved: false,
       newLineNum: lineNumber,
     }));
 
-    if (mainContent !== "") {
+    if (baseBranchContent !== "") {
       let lineMapping = new Map<number, number>();
       let currentOldLine = 1;
       let currentNewLine = 1;
@@ -121,7 +141,7 @@ export async function detectLineChanges(
       }
 
       // Map any remaining unchanged lines
-      while (currentOldLine <= mainContent.split("\n").length) {
+      while (currentOldLine <= baseBranchContent.split("\n").length) {
         lineMapping.set(currentOldLine, currentNewLine);
         currentOldLine++;
         currentNewLine++;

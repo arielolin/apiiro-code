@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { findRisks } from "../api";
+import { findRisks, getEnvironmentData } from "../api";
 import { Risk } from "../types/risk";
 import { detectLineChanges } from "./git";
 import { getRelativeFilePath } from "../utils/vs-code";
@@ -32,14 +32,21 @@ export class RiskHighlighter {
     try {
       const relativeFilePath = getRelativeFilePath(editor);
       if (!relativeFilePath) {
-        throw new Error("Unable to determine relative file path");
+        vscode.window.showErrorMessage(
+          "Unable to determine relative file path",
+        );
+        return;
       }
 
       const risks = await findRisks(relativeFilePath, repoData);
-      await this.applyHighlights(editor, risks);
-      await this.updateDiagnostics(editor, risks);
+
+      await this.applyHighlights(editor, risks, repoData);
+      await this.updateDiagnostics(editor, risks, repoData);
     } catch (error) {
-      this.handleError("Error highlighting risks", error);
+      vscode.window.showErrorMessage(
+        //@ts-ignore
+        error.message,
+      );
     }
   }
 
@@ -51,8 +58,9 @@ export class RiskHighlighter {
   private async applyHighlights(
     editor: vscode.TextEditor,
     risks: Risk[],
+    repoData: Repository,
   ): Promise<void> {
-    const groupedRisks = await this.groupRisksByLine(risks);
+    const groupedRisks = await this.groupRisksByLine(risks, repoData);
     const decorations = await this.createDecorations(editor, groupedRisks);
     this.removeAllHighlights(editor);
     editor.setDecorations(this.risksDecoration, decorations);
@@ -63,9 +71,10 @@ export class RiskHighlighter {
   private async updateDiagnostics(
     editor: vscode.TextEditor,
     risks: Risk[],
+    repoData: Repository,
   ): Promise<void> {
     const diagnostics: vscode.Diagnostic[] = [];
-    const groupedRisks = await this.groupRisksByLine(risks);
+    const groupedRisks = await this.groupRisksByLine(risks, repoData);
 
     for (const [lineNumber, risks] of groupedRisks.entries()) {
       const range = editor.document.lineAt(lineNumber - 1).range;
@@ -86,12 +95,15 @@ export class RiskHighlighter {
     this.diagnosticsCollection.set(editor.document.uri, diagnostics);
   }
 
-  async groupRisksByLine(risks: Risk[]): Promise<Map<number, Risk[]>> {
+  async groupRisksByLine(
+    risks: Risk[],
+    repoData: Repository,
+  ): Promise<Map<number, Risk[]>> {
     const groupedRisks = new Map<number, Risk[]>();
     const lineNumbers = risks.map((risk) => risk.sourceCode.lineNumber);
 
     try {
-      const lineChanges = await detectLineChanges(lineNumbers);
+      const lineChanges = await detectLineChanges(lineNumbers, repoData);
 
       for (let i = 0; i < risks.length; i++) {
         const risk = risks[i];
@@ -113,8 +125,8 @@ export class RiskHighlighter {
         groupedRisks.get(lineNumber)!.push(risk);
       }
     } catch (error) {
-      console.error("Error detecting line changes:", error);
-      // If there's an error, we'll use the original line numbers
+      vscode.window.showErrorMessage(`Error detecting line changes: ${error}`);
+
       for (const risk of risks) {
         const lineNumber = risk.sourceCode.lineNumber;
         if (!groupedRisks.has(lineNumber)) {
@@ -146,7 +158,8 @@ export class RiskHighlighter {
           renderOptions: { after: { contentText } },
         });
       } catch (error) {
-        this.handleError(`Invalid line number ${lineNumber}`, error);
+        //@ts-ignore
+        vscode.window.showErrorMessage(error);
       }
     }
 
@@ -174,7 +187,11 @@ export class RiskHighlighter {
   **Creation Time:** ${creationTime}
   
   **Business Impact:** ${risk.entity.details.businessImpact}
+
+  **Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
+    
   ${remediateLink}
+
   
   ---`;
       })
@@ -211,12 +228,5 @@ export class RiskHighlighter {
     } else {
       vscode.window.showInformationMessage("No risks detected");
     }
-  }
-
-  private handleError(message: string, error: unknown): void {
-    console.error(`${message}:`, error);
-    vscode.window.showErrorMessage(
-      `${message}: ${error instanceof Error ? error.message : String(error)}`,
-    );
   }
 }

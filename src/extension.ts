@@ -1,28 +1,71 @@
 import * as vscode from "vscode";
 import { RiskHighlighter } from "./modules/risks-highlighter";
 import { remediateRisk } from "./modules/remediate-risks/remediate-risks";
-import { getRepoName } from "./modules/git";
-import { getRepo } from "./api";
+import { getMonitoredRepositoriesByName } from "./api";
+import { getRemoteUrl, getRepoName } from "./modules/git";
 import { Repository } from "./types/repository";
 
 let riskHighlighter: RiskHighlighter;
 let filePanel: vscode.WebviewPanel | undefined;
+let repoData: Repository;
 
 export async function activate(context: vscode.ExtensionContext) {
-  riskHighlighter = new RiskHighlighter(context);
-  let repoData: Repository | undefined;
+  const riskHighlighter = new RiskHighlighter(context);
+
+  const highlightRisk = riskHighlighter.highlightRisk.bind(riskHighlighter);
 
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (workspaceFolders && workspaceFolders.length > 0) {
     try {
       const repoName = await getRepoName(workspaceFolders[0].uri.fsPath);
-      repoData = await getRepo(repoName);
+      const remoteUrl = await getRemoteUrl(workspaceFolders[0].uri.fsPath);
+      const allMonitoredRepositories =
+        await getMonitoredRepositoriesByName(repoName);
 
-      if (repoData) {
-        vscode.window.showInformationMessage(
-          `Current repository data: ${repoName}`,
+      const baseBranch = await vscode.window.showQuickPick(
+        allMonitoredRepositories.map((repo) => ({
+          label: repo.branchName,
+          detail: repo.name,
+        })),
+        {
+          placeHolder: "Select Base Branch",
+          matchOnDetail: true,
+        },
+      );
+
+      if (!baseBranch) {
+        vscode.window.showWarningMessage("No base branch provided.");
+        return;
+      }
+
+      repoData = allMonitoredRepositories.find(
+        (repo) => repo.branchName === baseBranch.label,
+      ) as Repository;
+
+      if (!repoData) {
+        vscode.window.showWarningMessage(
+          `Failed to retrieve data for repository: ${repoName}`,
         );
-      } else {
+        return;
+      }
+
+      repoData.branchName = baseBranch.label;
+
+      await vscode.workspace
+        .getConfiguration()
+        .update(
+          "apiiroCode.baseBranch",
+          baseBranch,
+          vscode.ConfigurationTarget.Workspace,
+        );
+
+      const baseBranchByRemoteUrl = { [remoteUrl]: baseBranch };
+      await context.globalState.update(
+        "apiiroCode.baseBranchByRemoteUrl",
+        baseBranchByRemoteUrl,
+      );
+
+      if (!repoData) {
         vscode.window.showWarningMessage(
           `Failed to retrieve data for repository: ${repoName}`,
         );
@@ -38,7 +81,7 @@ export async function activate(context: vscode.ExtensionContext) {
     async () => {
       const editor = vscode.window.activeTextEditor;
       if (editor) {
-        await highlightRisksInEditor(editor, repoData);
+        await highlightRisk(editor, repoData);
       } else {
         vscode.window.showInformationMessage("No active editor");
       }
@@ -50,19 +93,18 @@ export async function activate(context: vscode.ExtensionContext) {
     async (risk) => {
       const editor = vscode.window.activeTextEditor;
       if (editor) {
-        await remediateRisk(editor, risk);
+        await remediateRisk(editor, risk, repoData);
       }
     },
   );
 
-  context.subscriptions.push(highlightDisposable);
-  context.subscriptions.push(remediateDisposable);
+  context.subscriptions.push(highlightDisposable, remediateDisposable);
 
-  // Highlight secrets when a file is opened
+  // Highlight risks when a file is opened
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(async (editor) => {
       if (editor) {
-        await highlightRisksInEditor(editor, repoData);
+        await highlightRisk(editor, repoData);
       }
     }),
   );
@@ -71,7 +113,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidSaveTextDocument(async (document) => {
       const editor = vscode.window.activeTextEditor;
       if (editor && editor.document === document) {
-        await highlightRisksInEditor(editor, repoData);
+        await highlightRisk(editor, repoData);
       }
     }),
   );
@@ -86,33 +128,8 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 
   if (vscode.window.activeTextEditor) {
-    highlightRisksInEditor(vscode.window.activeTextEditor, repoData);
+    await highlightRisk(vscode.window.activeTextEditor, repoData);
   }
-}
-
-async function highlightRisksInEditor(
-  editor: vscode.TextEditor,
-  repoData: Repository | undefined,
-) {
-  try {
-    if (repoData) {
-      await riskHighlighter.highlightRisk(editor, repoData);
-    } else {
-      vscode.window.showWarningMessage("Repository data is not available");
-    }
-  } catch (error: any) {
-    console.error("Error highlighting risks:", error);
-    vscode.window.showErrorMessage(error.message);
-  }
-}
-
-function escapeHtml(unsafe: string) {
-  return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
 }
 
 export function deactivate() {

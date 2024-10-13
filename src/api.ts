@@ -3,6 +3,7 @@ import vscode from "vscode";
 import { Risk } from "./types/risk";
 import NodeCache from "node-cache";
 import { Repository } from "./types/repository";
+import { decodeJwt } from "./utils/string";
 
 const REPO_API_BASE_URL = "https://app-staging.apiiro.com/rest-api/v2";
 const RISK_API_BASE_URL = "https://app-staging.apiiro.com/rest-api/v1";
@@ -20,6 +21,11 @@ function getApiToken(): string | null {
   return token as string;
 }
 
+export function getEnvironmentData() {
+  const token = getApiToken() as string;
+  return decodeJwt(token);
+}
+
 function createAxiosInstance(baseURL: string) {
   const token = getApiToken();
   if (!token) {
@@ -34,18 +40,17 @@ function createAxiosInstance(baseURL: string) {
   });
 }
 
-export async function getRepo(
+export async function getMonitoredRepositoriesByName(
   repoName: string,
-): Promise<Repository | undefined> {
+): Promise<Repository[]> {
   const axiosInstance = createAxiosInstance(REPO_API_BASE_URL);
   if (!axiosInstance) {
-    return;
+    return [];
   }
 
   try {
     const params = {
       "filters[RepositoryName]": repoName,
-      pageSize: 1,
     };
 
     const paramsSerializer = (params: Record<string, string>) => {
@@ -64,17 +69,19 @@ export async function getRepo(
       response.data.items &&
       response.data.items.length > 0
     ) {
-      return response.data.items[0];
+      return response.data.items.filter(
+        (repo: Repository) => repo.name === repoName,
+      );
     } else {
       vscode.window.showWarningMessage(`Repository "${repoName}" not found.`);
-      return;
+      return [];
     }
   } catch (error: any) {
     console.error("API Error:", error.response?.data || error.message);
     vscode.window.showErrorMessage(
       `Error retrieving repository: ${error.message}`,
     );
-    return;
+    return [];
   }
 }
 
