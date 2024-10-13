@@ -4,6 +4,7 @@ import { remediateRisk } from "./modules/remediate-risks/remediate-risks";
 import { getMonitoredRepositoriesByName } from "./api";
 import { getRemoteUrl, getRepoName } from "./modules/git";
 import { Repository } from "./types/repository";
+import _ from "lodash";
 
 let filePanel: vscode.WebviewPanel | undefined;
 let repoData: Repository;
@@ -12,7 +13,7 @@ let baseBranch: string;
 export async function activate(context: vscode.ExtensionContext) {
   const riskHighlighter = new RiskHighlighter(context);
 
-  const highlightRisk = riskHighlighter.highlightRisks.bind(riskHighlighter);
+  const highlightRisks = riskHighlighter.highlightRisks.bind(riskHighlighter);
 
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (workspaceFolders && workspaceFolders.length > 0) {
@@ -96,7 +97,7 @@ export async function activate(context: vscode.ExtensionContext) {
     async () => {
       const editor = vscode.window.activeTextEditor;
       if (editor) {
-        await highlightRisk(editor, repoData);
+        await highlightRisks(editor, repoData);
       } else {
         vscode.window.showInformationMessage("No active editor");
       }
@@ -119,31 +120,27 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(async (editor) => {
       if (editor) {
-        await highlightRisk(editor, repoData);
+        await highlightRisks(editor, repoData);
       }
     }),
   );
 
-  context.subscriptions.push(
-    vscode.workspace.onDidSaveTextDocument(async (document) => {
-      const editor = vscode.window.activeTextEditor;
-      if (editor && editor.document === document) {
-        await highlightRisk(editor, repoData);
-      }
-    }),
-  );
+  const debounceHighlight = _.debounce(async (editor: vscode.TextEditor) => {
+    await highlightRisks(editor, repoData);
+  }, 500);
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument(async (event) => {
       const editor = vscode.window.activeTextEditor;
-      if (editor) {
+      if (editor && editor.document === event.document) {
         await riskHighlighter.removeAllHighlights(editor);
+        debounceHighlight(editor);
       }
     }),
   );
 
   if (vscode.window.activeTextEditor) {
-    await highlightRisk(vscode.window.activeTextEditor, repoData);
+    await highlightRisks(vscode.window.activeTextEditor, repoData);
   }
 }
 
