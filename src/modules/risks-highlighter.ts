@@ -18,7 +18,6 @@ export class RiskHighlighter {
     });
 
     this.diagnosticsCollection = vscode.languages.createDiagnosticCollection();
-
     context.subscriptions.push(
       this.risksDecoration,
       this.diagnosticsCollection,
