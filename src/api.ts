@@ -168,10 +168,6 @@ export async function findRisks(
     const secretsRisks = secretsResponse.data.items || [];
     const allRisks = [...ossRisks, ...secretsRisks];
 
-    if (allRisks.length === 0) {
-      vscode.window.showInformationMessage("No risks found.");
-    }
-
     cache.set(cacheKey, allRisks);
     return allRisks;
   } catch (error: any) {

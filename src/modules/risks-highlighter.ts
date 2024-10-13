@@ -7,8 +7,8 @@ import { hasRemedy } from "./remediate-risks/remediate-risks";
 import { Repository } from "../types/repository";
 
 export class RiskHighlighter {
-  private risksDecoration: vscode.TextEditorDecorationType;
-  private diagnosticsCollection: vscode.DiagnosticCollection;
+  private readonly risksDecoration: vscode.TextEditorDecorationType;
+  private readonly diagnosticsCollection: vscode.DiagnosticCollection;
 
   constructor(context: vscode.ExtensionContext) {
     this.risksDecoration = vscode.window.createTextEditorDecorationType({
@@ -39,7 +39,12 @@ export class RiskHighlighter {
 
       const risks = await findRisks(relativeFilePath, repoData);
 
-      await this.applyHighlights(editor, risks, repoData);
+      if (risks.length === 0) {
+        vscode.window.showInformationMessage("No risks found");
+        return;
+      }
+
+      await this.applyInlineHighlights(editor, risks, repoData);
       await this.updateDiagnostics(editor, risks, repoData);
     } catch (error) {
       vscode.window.showErrorMessage(
@@ -54,7 +59,7 @@ export class RiskHighlighter {
     this.diagnosticsCollection.clear();
   }
 
-  private async applyHighlights(
+  private async applyInlineHighlights(
     editor: vscode.TextEditor,
     risks: Risk[],
     repoData: Repository,
