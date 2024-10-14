@@ -8,7 +8,7 @@ import { URL } from "url";
 
 const REPO_API_BASE_URL = `${getEnvironmentData().AppUrl}/rest-api/v2`;
 const RISK_API_BASE_URL = `${getEnvironmentData().AppUrl}/rest-api/v1`;
-const cache = new NodeCache({ stdTTL: 300 });
+const cache = new NodeCache({ stdTTL: 300 }); //5 minutes cache
 
 function getApiToken(): string | null {
   const config = vscode.workspace.getConfiguration("apiiroCode");
@@ -134,9 +134,6 @@ export async function findRisks(
   }
 
   try {
-    vscode.window.showInformationMessage(
-      `Apiiro: Getting risks for ${relativeFilePath} in ${repoData.name}...`,
-    );
     const params = {
       "filters[CodeReference]": relativeFilePath,
       "filters[RepositoryID]": repoData.key,

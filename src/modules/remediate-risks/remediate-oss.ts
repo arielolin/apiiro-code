@@ -1,6 +1,6 @@
 import vscode from "vscode";
 import { Risk } from "../../types/risk";
-import { detectLineChanges } from "../git";
+import { detectLineChanges } from "../../utils/git";
 import { RiskRemediator } from "./remediate-risks";
 import { Repository } from "../../types/repository";
 
@@ -26,7 +26,10 @@ export class OSSRiskRemediator implements RiskRemediator {
     //@ts-ignore
     const componentName = risk.component.split();
     const depKey = risk.component.split(":")[0];
-    const fixVersion = risk.remediationSuggestion.nearestFixVersion;
+    let fixVersion = "latest";
+    if ("remediationSuggestion" in risk) {
+      fixVersion = risk.remediationSuggestion.nearestFixVersion;
+    }
 
     console.log(
       `Attempting to update ${componentName} to version ${fixVersion}`,

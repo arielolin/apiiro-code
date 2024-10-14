@@ -1,10 +1,14 @@
 import * as vscode from "vscode";
-import { findRisks, getEnvironmentData } from "../api";
-import { Risk } from "../types/risk";
-import { detectLineChanges } from "./git";
-import { getRelativeFilePath } from "../utils/vs-code";
-import { hasRemedy } from "./remediate-risks/remediate-risks";
-import { Repository } from "../types/repository";
+import { findRisks } from "../../api";
+import { OSSRisk, Risk, SecretsRisk } from "../../types/risk";
+import { detectLineChanges } from "../../utils/git";
+import { getRelativeFilePath } from "../../utils/vs-code";
+import { hasRemedy } from "../remediate-risks/remediate-risks";
+import { Repository } from "../../types/repository";
+
+import { getSeverityIcon } from "./utils";
+import { createSecretsMessage } from "./secrets-highliter";
+import { createSCAMessage } from "./oss-highliter";
 
 export class RiskHighlighter {
   private readonly risksDecoration: vscode.TextEditorDecorationType;
@@ -111,13 +115,11 @@ export class RiskHighlighter {
       case "critical":
         return vscode.DiagnosticSeverity.Error;
       case "high":
-        return vscode.DiagnosticSeverity.Warning;
       case "medium":
-        return vscode.DiagnosticSeverity.Information;
       case "low":
-        return vscode.DiagnosticSeverity.Hint;
+        return vscode.DiagnosticSeverity.Warning;
       default:
-        return vscode.DiagnosticSeverity.Information;
+        return vscode.DiagnosticSeverity.Warning;
     }
   }
 
@@ -175,8 +177,8 @@ export class RiskHighlighter {
       try {
         const range = editor.document.lineAt(lineNumber - 1).range;
         const uniqueRiskTypes = [...new Set(risks.map((r) => r.riskCategory))];
-        const hoverMessage = await this.createHoverMessage(risks);
-        const contentText = this.createContentText(uniqueRiskTypes);
+        const hoverMessage = this.createHoverMessage(risks);
+        const contentText = this.createInlineRiskDescription(uniqueRiskTypes);
 
         decorations.push({
           range,
@@ -195,33 +197,17 @@ export class RiskHighlighter {
   private createHoverMessage(risks: Risk[]): vscode.MarkdownString {
     const message = risks
       .map((risk) => {
-        const creationTime = new Date(risk.discoveredOn).toLocaleString();
-        const riskLevelColor = this.getRiskLevelColor(risk.riskLevel);
         const encodedRisk = encodeURIComponent(JSON.stringify(risk));
 
-        let remediateLink = "";
-        if (hasRemedy(risk)) {
-          remediateLink = `\n\n[Remediate](command:apiiro-code.remediate?${encodedRisk})`;
+        if (risk.riskCategory === "OSS Security") {
+          return createSCAMessage(risk as OSSRisk, encodedRisk);
+        } else if (risk.riskCategory === "Secrets") {
+          return createSecretsMessage(risk as SecretsRisk, encodedRisk);
+        } else {
+          return this.createDefaultMessage(risk, encodedRisk);
         }
-
-        return `## 🚨 ${risk.riskCategory} Risk Detected
-  
-  **Risk Level:** <span style="color: ${riskLevelColor}">${risk.riskLevel}</span>
-  
-  **Policy:** ${risk.ruleName}
-  
-  **Creation Time:** ${creationTime}
-  
-  **Business Impact:** ${risk.entity.details.businessImpact}
-
-  **Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
-    
-  ${remediateLink}
-
-  
-  ---`;
       })
-      .join("\n\n");
+      .join("\n\n---\n\n");
 
     const markdownMessage = new vscode.MarkdownString(message);
     markdownMessage.isTrusted = true;
@@ -229,21 +215,19 @@ export class RiskHighlighter {
     return markdownMessage;
   }
 
-  private getRiskLevelColor(riskLevel: string): string {
-    switch (riskLevel.toLowerCase()) {
-      case "low":
-        return "green";
-      case "medium":
-        return "yellow";
-      case "high":
-        return "red";
-      default:
-        return "blue";
-    }
+  private createDefaultMessage(risk: Risk, encodedRisk: string): string {
+    const severityIcon = getSeverityIcon(risk.riskLevel);
+
+    return `**${severityIcon} ${risk.riskLevel} severity: ${risk.findingName || risk.ruleName}**
+* Risk Category: ${risk.riskCategory}
+* Description: ${risk.ruleName}
+
+${hasRemedy(risk) ? `\n[Remediate](command:apiiro-code.remediate?${encodedRisk})` : ""}
+`;
   }
 
-  private createContentText(riskTypes: string[]): string {
-    return `🚨 ${riskTypes.join(", ")} detected`;
+  private createInlineRiskDescription(riskTypes: string[]): string {
+    return `🚨 ${riskTypes.join(", ")} risk detected`;
   }
 
   private showRiskSummary(riskCount: number): void {

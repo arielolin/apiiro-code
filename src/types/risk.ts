@@ -1,6 +1,6 @@
-export interface Risk {
-  remediationSuggestion: { nearestFixVersion: string };
+export interface BaseRisk {
   id: string;
+  type: string;
   riskLevel: string;
   riskStatus: string;
   ruleName: string;
@@ -9,7 +9,6 @@ export interface Risk {
   discoveredOn: string;
   insights: any[]; // You might want to define a more specific type for insights
   apiiroRiskUrl: string;
-
   source: Array<{
     name: string;
     url: string;
@@ -62,3 +61,34 @@ export interface Risk {
   findingCategory: string;
   findingName: string | null;
 }
+
+export interface OSSRisk extends BaseRisk {
+  remediationSuggestion: {
+    codeReference: any;
+    nearestFixVersion: string;
+  };
+  dependencyName: string;
+  dependencyVersion: string;
+  vulnerabilities?: Array<{
+    exploitMaturity: string;
+    cvss: number;
+    epss?: {
+      percentile: number;
+      score: number;
+      scoreSeverity: string;
+    };
+    id: string;
+    identifiers: string[];
+  }>;
+}
+
+export interface SecretsRisk extends BaseRisk {
+  secretType: string;
+  fileType: string;
+  exposure: string;
+  validity: string;
+  lastValidatedOn?: string;
+  previewLines: string[];
+}
+
+export type Risk = OSSRisk | SecretsRisk;

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { detectLineChanges } from "../git";
-import { Risk } from "../../types/risk";
+import { detectLineChanges } from "../../utils/git";
+import { OSSRisk, Risk } from "../../types/risk";
 import { OSSRiskRemediator } from "./remediate-oss";
 import { Repository } from "../../types/repository";
 
@@ -40,5 +40,5 @@ export async function remediateRisk(
 }
 
 export function hasRemedy(risk: Risk): boolean {
-  return Boolean(risk.remediationSuggestion);
+  return !!("remediationSuggestion" in risk && risk.remediationSuggestion);
 }
