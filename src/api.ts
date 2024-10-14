@@ -8,7 +8,13 @@ import { URL } from "url";
 
 const REPO_API_BASE_URL = `${getEnvironmentData().AppUrl}/rest-api/v2`;
 const RISK_API_BASE_URL = `${getEnvironmentData().AppUrl}/rest-api/v1`;
+const MAX_CONCURRENT_REQUESTS = 10; // Increase this, but be mindful of API rate limits
+const MAX_PAGE_SIZE = 1000; // Increase page size to reduce number of requests
+const EARLY_TERMINATION_THRESHOLD = 3; // Number of empty pages before early termination
+
 const cache = new NodeCache({ stdTTL: 600 }); //5 minutes cache
+
+type AxiosInstance = axios.AxiosInstance;
 
 function getApiToken(): string | null {
   const config = vscode.workspace.getConfiguration("apiiroCode");
@@ -117,6 +123,83 @@ export async function getMonitoredRepositoriesByName(
     return [];
   }
 }
+async function fetchRisksPage(
+  axiosInstance: AxiosInstance,
+  riskCategory: string,
+  params: Record<string, any>,
+  paramsSerializer: (params: Record<string, string>) => string,
+  skip: number,
+): Promise<{ risks: Risk[]; totalItemCount: number }> {
+  const response = await axiosInstance.get(
+    `/risks/${riskCategory.toLowerCase()}`,
+    {
+      params: {
+        ...params,
+        "filters[RiskCategory]": riskCategory,
+        skip,
+      },
+      paramsSerializer,
+    },
+  );
+
+  return {
+    risks: response.data.items || [],
+    totalItemCount: response.data.paging.totalItemCount,
+  };
+}
+
+async function fetchAllRisks(
+  axiosInstance: AxiosInstance,
+  riskCategory: string,
+  params: Record<string, any>,
+  paramsSerializer: (params: Record<string, string>) => string,
+): Promise<Risk[]> {
+  let allRisks: Risk[] = [];
+  let skip = 0;
+  let emptyPageCount = 0;
+  let totalItemCount = Infinity;
+
+  const fetchPage = async (pageSkip: number) => {
+    const page = await fetchRisksPage(
+      axiosInstance,
+      riskCategory,
+      params,
+      paramsSerializer,
+      pageSkip,
+    );
+    if (page.risks.length === 0) emptyPageCount++;
+    else emptyPageCount = 0;
+    totalItemCount = page.totalItemCount;
+    return page.risks;
+  };
+
+  while (
+    skip < totalItemCount &&
+    emptyPageCount < EARLY_TERMINATION_THRESHOLD
+  ) {
+    const pagePromises = [];
+    for (
+      let i = 0;
+      i < MAX_CONCURRENT_REQUESTS &&
+      skip + i * params.pageSize < totalItemCount;
+      i++
+    ) {
+      pagePromises.push(fetchPage(skip + i * params.pageSize));
+    }
+    const pages = await Promise.all(pagePromises);
+    allRisks = allRisks.concat(pages.flat());
+    skip += MAX_CONCURRENT_REQUESTS * params.pageSize;
+
+    if (emptyPageCount >= EARLY_TERMINATION_THRESHOLD) {
+      console.log(
+        `Early termination for ${riskCategory} after ${emptyPageCount} empty pages`,
+      );
+      break;
+    }
+  }
+
+  return allRisks;
+}
 
 export async function findRisks(
   relativeFilePath: string,
@@ -137,32 +220,20 @@ export async function findRisks(
     const params = {
       "filters[CodeReference]": relativeFilePath,
       "filters[RepositoryID]": repoData.key,
+      pageSize: MAX_PAGE_SIZE,
     };
+
     const paramsSerializer = (params: Record<string, string>) => {
       return Object.entries(params)
         .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
         .join("&");
     };
 
-    const [ossResponse, secretsResponse] = await Promise.all([
-      axiosInstance.get("/risks/oss", {
-        params: {
-          ...params,
-          "filters[RiskCategory]": "OSS",
-        },
-        paramsSerializer,
-      }),
-      axiosInstance.get("/risks/secrets", {
-        params: {
-          ...params,
-          "filters[RiskCategory]": "Secrets",
-        },
-        paramsSerializer,
-      }),
+    const [ossRisks, secretsRisks] = await Promise.all([
+      fetchAllRisks(axiosInstance, "OSS", params, paramsSerializer),
+      fetchAllRisks(axiosInstance, "Secrets", params, paramsSerializer),
     ]);
 
-    const ossRisks = ossResponse.data.items || [];
-    const secretsRisks = secretsResponse.data.items || [];
     const allRisks = [...ossRisks, ...secretsRisks];
 
     cache.set(cacheKey, allRisks);

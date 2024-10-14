@@ -126,6 +126,7 @@ export class RiskHighlighter {
     repoData: Repository,
   ): Promise<Map<number, Risk[]>> {
     const groupedRisks = new Map<number, Risk[]>();
+    const discardedRisks = new Map<number, Risk[]>();
     try {
       const lineNumbers = risks.map((risk) => risk.sourceCode.lineNumber);
       const lineChanges = await detectLineChanges(lineNumbers, repoData);
@@ -133,7 +134,12 @@ export class RiskHighlighter {
       for (let i = 0; i < risks.length; i++) {
         const risk = risks[i];
         const { hasChanged, newLineNum } = lineChanges[i];
-        const lineNumber = newLineNum ?? risk.sourceCode.lineNumber;
+
+        const lineNumber = hasChanged
+          ? -1 // setting changed risk line to -1 to prevent deletion of risks moved to this line
+          : newLineNum
+            ? newLineNum
+            : risk.sourceCode.lineNumber;
 
         if (hasChanged) {
           if (groupedRisks.has(lineNumber)) {
