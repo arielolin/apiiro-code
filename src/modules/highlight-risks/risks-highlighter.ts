@@ -34,9 +34,6 @@ export class RiskHighlighter {
     try {
       const relativeFilePath = getRelativeFilePath(editor);
       if (!relativeFilePath) {
-        vscode.window.showErrorMessage(
-          "Unable to determine relative file path",
-        );
         return;
       }
 

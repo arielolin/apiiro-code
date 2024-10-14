@@ -8,9 +8,8 @@ import { URL } from "url";
 
 const REPO_API_BASE_URL = `${getEnvironmentData().AppUrl}/rest-api/v2`;
 const RISK_API_BASE_URL = `${getEnvironmentData().AppUrl}/rest-api/v1`;
-const MAX_CONCURRENT_REQUESTS = 10; // Increase this, but be mindful of API rate limits
+const MAX_CONCURRENT_REQUESTS = 50;
 const MAX_PAGE_SIZE = 1000; // Increase page size to reduce number of requests
-const EARLY_TERMINATION_THRESHOLD = 3; // Number of empty pages before early termination
 
 const cache = new NodeCache({ stdTTL: 600 }); //5 minutes cache
 
@@ -173,10 +172,7 @@ async function fetchAllRisks(
     return page.risks;
   };
 
-  while (
-    skip < totalItemCount &&
-    emptyPageCount < EARLY_TERMINATION_THRESHOLD
-  ) {
+  while (skip < totalItemCount && emptyPageCount < 1) {
     const pagePromises = [];
     for (
       let i = 0;
@@ -189,13 +185,6 @@ async function fetchAllRisks(
     const pages = await Promise.all(pagePromises);
     allRisks = allRisks.concat(pages.flat());
     skip += MAX_CONCURRENT_REQUESTS * params.pageSize;
-
-    if (emptyPageCount >= EARLY_TERMINATION_THRESHOLD) {
-      console.log(
-        `Early termination for ${riskCategory} after ${emptyPageCount} empty pages`,
-      );
-      break;
-    }
   }
 
   return allRisks;
