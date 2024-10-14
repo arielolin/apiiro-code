@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { RiskHighlighter } from "./modules/highlight-risks/risks-highlighter";
 import { remediateRisk } from "./modules/remediate-risks/remediate-risks";
 import { getMonitoredRepositoriesByName } from "./api";
-import { getRemoteUrl, getRepoName } from "./utils/git";
+import { getRemoteUrl, getRepoName } from "./modules/git";
 import { Repository } from "./types/repository";
 import _ from "lodash";
 

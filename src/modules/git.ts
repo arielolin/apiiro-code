@@ -1,13 +1,11 @@
 import * as vscode from "vscode";
-import { exec } from "child_process";
-import { promisify } from "util";
+import { spawn } from "child_process";
 import * as diff from "diff";
 import * as path from "path";
 import NodeCache from "node-cache";
 import { Repository } from "../types/repository";
 
-const execAsync = promisify(exec);
-const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
+const cache = new NodeCache({ stdTTL: 600 }); // 5 minutes cache
 
 interface LineChangeInfo {
   originalLineNumber: number;
@@ -18,10 +16,12 @@ interface LineChangeInfo {
 
 export async function getRepoName(workspacePath: string): Promise<string> {
   try {
-    const remoteUrl = await runGitCommand(
-      workspacePath,
-      "git config --get remote.origin.url",
-    );
+    const remoteUrl = await runGitCommand(workspacePath, [
+      "config",
+      "--get",
+      "remote.origin.url",
+    ]);
+
     const match = remoteUrl.match(/\/([^\/]+)\.git$/);
     if (match && match[1]) {
       return match[1];
@@ -31,19 +31,18 @@ export async function getRepoName(workspacePath: string): Promise<string> {
       );
     }
   } catch (error) {
-    console.error("Apiiro: Error getting repository name:", error);
     throw error;
   }
 }
 
 export async function getRemoteUrl(workspacePath: string): Promise<string> {
   try {
-    return await runGitCommand(
-      workspacePath,
-      "git config --get remote.origin.url",
-    );
+    return await runGitCommand(workspacePath, [
+      "config",
+      "--get",
+      "remote.origin.url",
+    ]);
   } catch (error) {
-    console.error("Error getting remote URL:", error);
     throw error;
   }
 }
@@ -54,15 +53,16 @@ export async function detectLineChanges(
 ): Promise<LineChangeInfo[]> {
   const baseBranch = repoData.branchName;
   if (!baseBranch) {
-    vscode.window.showErrorMessage(
-      "Apiiro: Repository data is missing or incomplete",
-    );
+    const error = new Error("Apiiro: Repository data is missing or incomplete");
+
+    vscode.window.showErrorMessage(error.message);
     return [];
   }
 
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
-    vscode.window.showErrorMessage("Apiiro: No active text editor");
+    const error = new Error("Apiiro: No active text editor");
+    vscode.window.showErrorMessage(error.message);
     return [];
   }
 
@@ -70,7 +70,8 @@ export async function detectLineChanges(
   const absoluteFilePath = document.uri.fsPath;
   const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
   if (!workspaceFolder) {
-    vscode.window.showErrorMessage(`"Apiiro: File is not part of a workspace"`);
+    const error = new Error("Apiiro: File is not part of a workspace");
+    vscode.window.showErrorMessage(error.message);
     return [];
   }
 
@@ -82,22 +83,20 @@ export async function detectLineChanges(
     const fetchOrigin = cache.get("fetchOrigin");
 
     if (!fetchOrigin) {
-      await runGitCommand(workspacePath, "git fetch origin");
+      await runGitCommand(workspacePath, ["fetch", "origin"]);
       cache.set("fetchOrigin", true);
     }
 
     // Get the content of the file in the base branch
     let baseBranchContent: string;
     try {
-      baseBranchContent = await runGitCommand(
-        workspacePath,
-        `git show origin/${baseBranch}:"${relativeFilePath}"`,
-      );
+      baseBranchContent = await runGitCommand(workspacePath, [
+        "show",
+        `origin/${baseBranch}:${relativeFilePath}`,
+      ]);
     } catch (error) {
       vscode.window.showErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Error fetching base branch content",
+        `Error fetching base branch content: ${error instanceof Error ? error.message : String(error)}`,
       );
       baseBranchContent = "";
     }
@@ -107,7 +106,7 @@ export async function detectLineChanges(
 
     // Calculate the diff
     const diffResult = diff.structuredPatch(
-      "main",
+      "base",
       "current",
       baseBranchContent,
       currentContent,
@@ -117,7 +116,7 @@ export async function detectLineChanges(
 
     let results: LineChangeInfo[] = lineNumbers.map((lineNumber) => ({
       originalLineNumber: lineNumber,
-      hasChanged: baseBranchContent === "", // If main content is empty, all lines are new
+      hasChanged: baseBranchContent === "", // If base content is empty, all lines are new
       hasMoved: false,
       newLineNum: lineNumber,
     }));
@@ -174,21 +173,33 @@ export async function detectLineChanges(
 
     return results;
   } catch (error) {
-    vscode.window.showErrorMessage(
-      `Apiiro:Error detecting line changes: ${error}`,
-    );
+    const errorMessage = `Apiiro: Error detecting line changes: ${error}`;
+
+    vscode.window.showErrorMessage(errorMessage);
     throw error;
   }
 }
 
-async function runGitCommand(cwd: string, command: string): Promise<string> {
-  console.log(`Running command in ${cwd}: ${command}`);
-  try {
-    //@ts-ignore
-    const { stdout } = await execAsync(command, { cwd });
-    return stdout.trim();
-  } catch (error) {
-    console.error(`Error running git command: ${command}`, error);
-    throw error;
-  }
+async function runGitCommand(cwd: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const process = spawn("git", args, { cwd });
+    let stdout = "";
+    let stderr = "";
+
+    process.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    process.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    process.on("close", (code) => {
+      if (code === 0) {
+        resolve(stdout.trim());
+      } else {
+        reject(new Error(`Git command failed: ${stderr}`));
+      }
+    });
+  });
 }

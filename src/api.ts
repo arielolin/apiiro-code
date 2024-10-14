@@ -8,7 +8,7 @@ import { URL } from "url";
 
 const REPO_API_BASE_URL = `${getEnvironmentData().AppUrl}/rest-api/v2`;
 const RISK_API_BASE_URL = `${getEnvironmentData().AppUrl}/rest-api/v1`;
-const cache = new NodeCache({ stdTTL: 300 }); //5 minutes cache
+const cache = new NodeCache({ stdTTL: 600 }); //5 minutes cache
 
 function getApiToken(): string | null {
   const config = vscode.workspace.getConfiguration("apiiroCode");
@@ -96,7 +96,7 @@ export async function getMonitoredRepositoriesByName(
 
       if (filteredRepos.length > 0) {
         vscode.window.showInformationMessage(
-          `Found ${filteredRepos.length} matching repositories.`,
+          `Connected to repository "${repoName}" at ${remoteUrl}.`,
         );
         return filteredRepos;
       } else {

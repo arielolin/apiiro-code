@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { detectLineChanges } from "../../utils/git";
+import { detectLineChanges } from "../git";
 import { OSSRisk, Risk } from "../../types/risk";
 import { OSSRiskRemediator } from "./remediate-oss";
 import { Repository } from "../../types/repository";

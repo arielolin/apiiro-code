@@ -1,11 +1,10 @@
 import * as vscode from "vscode";
 import { findRisks } from "../../api";
 import { OSSRisk, Risk, SecretsRisk } from "../../types/risk";
-import { detectLineChanges } from "../../utils/git";
+import { detectLineChanges } from "../git";
 import { getRelativeFilePath } from "../../utils/vs-code";
 import { hasRemedy } from "../remediate-risks/remediate-risks";
 import { Repository } from "../../types/repository";
-
 import { getSeverityIcon } from "./utils";
 import { createSecretsMessage } from "./secrets-highliter";
 import { createSCAMessage } from "./oss-highliter";
@@ -52,8 +51,7 @@ export class RiskHighlighter {
       await this.updateDiagnostics(editor, risks, repoData);
     } catch (error) {
       vscode.window.showErrorMessage(
-        //@ts-ignore
-        error.message,
+        `Error in highlightRisks: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -128,9 +126,8 @@ export class RiskHighlighter {
     repoData: Repository,
   ): Promise<Map<number, Risk[]>> {
     const groupedRisks = new Map<number, Risk[]>();
-    const lineNumbers = risks.map((risk) => risk.sourceCode.lineNumber);
-
     try {
+      const lineNumbers = risks.map((risk) => risk.sourceCode.lineNumber);
       const lineChanges = await detectLineChanges(lineNumbers, repoData);
 
       for (let i = 0; i < risks.length; i++) {
@@ -139,7 +136,6 @@ export class RiskHighlighter {
         const lineNumber = newLineNum ?? risk.sourceCode.lineNumber;
 
         if (hasChanged) {
-          // If the line has changed, we don't include it in the groupedRisks
           if (groupedRisks.has(lineNumber)) {
             groupedRisks.delete(lineNumber);
           }
@@ -149,12 +145,10 @@ export class RiskHighlighter {
         if (!groupedRisks.has(lineNumber)) {
           groupedRisks.set(lineNumber, []);
         }
-
         groupedRisks.get(lineNumber)!.push(risk);
       }
     } catch (error) {
       vscode.window.showErrorMessage(`Error detecting line changes: ${error}`);
-
       for (const risk of risks) {
         const lineNumber = risk.sourceCode.lineNumber;
         if (!groupedRisks.has(lineNumber)) {
@@ -186,8 +180,9 @@ export class RiskHighlighter {
           renderOptions: { after: { contentText } },
         });
       } catch (error) {
-        //@ts-ignore
-        vscode.window.showErrorMessage(error);
+        vscode.window.showErrorMessage(
+          `Error creating decoration for line ${lineNumber}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
