@@ -123,7 +123,6 @@ export class RiskHighlighter {
     repoData: Repository,
   ): Promise<Map<number, Risk[]>> {
     const groupedRisks = new Map<number, Risk[]>();
-    const discardedRisks = new Map<number, Risk[]>();
     try {
       const lineNumbers = risks.map((risk) => risk.sourceCode.lineNumber);
       const lineChanges = await detectLineChanges(lineNumbers, repoData);
