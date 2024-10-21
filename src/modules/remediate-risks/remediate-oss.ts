@@ -33,10 +33,6 @@ export class OSSRiskRemediation implements RiskRemediation {
       fixVersion = risk.remediationSuggestion.nearestFixVersion;
     }
 
-    vscode.window.showInformationMessage(
-      `Attempting to update ${componentName} to version ${fixVersion}`,
-    );
-
     const line = document.lineAt(lineNumber - 1);
     const originalText = line.text;
 
@@ -53,13 +49,22 @@ export class OSSRiskRemediation implements RiskRemediation {
       fixVersion,
     );
 
-    await addSuggestionLine(
-      editor,
-      lineNumber,
-      originalText,
-      updatedLineText,
-      () => this.applyRemediation(editor, line.range, updatedLineText),
-    );
+    return new Promise<void>((resolve, reject) => {
+      addSuggestionLine(
+        editor,
+        lineNumber,
+        originalText,
+        updatedLineText,
+        async () => {
+          try {
+            await this.applyRemediation(editor, line.range, updatedLineText);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        },
+      );
+    });
   }
 
   private createUpdatedLineText(

@@ -9,11 +9,19 @@ import _ from "lodash";
 let filePanel: vscode.WebviewPanel | undefined;
 let repoData: Repository;
 let baseBranch: string;
+let preventHighlights = false;
 
 export async function activate(context: vscode.ExtensionContext) {
   const riskHighlighter = new RiskHighlighter(context);
 
-  const highlightRisks = riskHighlighter.highlightRisks.bind(riskHighlighter);
+  const highlightRisks = async (
+    editor: vscode.TextEditor,
+    repo: Repository,
+  ) => {
+    if (!preventHighlights) {
+      await riskHighlighter.highlightRisks(editor, repo);
+    }
+  };
 
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (workspaceFolders && workspaceFolders.length > 0) {
@@ -109,14 +117,16 @@ export async function activate(context: vscode.ExtensionContext) {
     async (risk) => {
       const editor = vscode.window.activeTextEditor;
       if (editor) {
+        preventHighlights = true;
+        await riskHighlighter.removeAllHighlights(editor);
         await remediateRisk(editor, risk, repoData);
+        preventHighlights = false;
       }
     },
   );
 
   context.subscriptions.push(highlightDisposable, remediateDisposable);
 
-  // Highlight risks when a file is opened
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(async (editor) => {
       if (editor) {

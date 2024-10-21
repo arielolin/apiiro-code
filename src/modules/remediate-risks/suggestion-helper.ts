@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import { throws } from "assert";
 
 let isFileLocked = false;
 let lockedEditor: vscode.TextEditor | undefined;
@@ -8,6 +7,7 @@ let readonlyDecorationType: vscode.TextEditorDecorationType;
 let suggestedLineDecorationType: vscode.TextEditorDecorationType;
 let suggestedLineNumber: number | undefined;
 let suggestedLineContent: string | undefined;
+let riskyLineDecorationType: vscode.TextEditorDecorationType;
 
 export async function addSuggestionLine(
   editor: vscode.TextEditor,
@@ -27,7 +27,7 @@ export async function addSuggestionLine(
   await document.save();
 
   // Lock the file
-  isFileLocked = true;
+  isFileLocked = false;
   lockedEditor = editor;
   suggestedLineNumber = lineNumber;
   suggestedLineContent = suggestionLine;
@@ -38,6 +38,11 @@ export async function addSuggestionLine(
 
   suggestedLineDecorationType = vscode.window.createTextEditorDecorationType({
     backgroundColor: "rgba(0, 255, 0, 0.2)",
+    isWholeLine: true,
+  });
+
+  riskyLineDecorationType = vscode.window.createTextEditorDecorationType({
+    backgroundColor: "rgba(255, 0, 0, 0.2)",
     isWholeLine: true,
   });
 
@@ -60,7 +65,6 @@ export async function addSuggestionLine(
       if (needsUndo) {
         setTimeout(async () => {
           await vscode.commands.executeCommand("undo");
-          // Restore the suggested line if it was removed
           await restoreSuggestedLineIfNeeded(editor);
           vscode.window.showWarningMessage(
             "This file is locked. Please accept or ignore the suggestion before editing.",
@@ -79,10 +83,20 @@ export async function addSuggestionLine(
     },
     {
       provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+        // Find the current position of the suggested line
+        const lines = document.getText().split("\n");
+        const currentIndex = lines.findIndex(
+          (line) => line.trim() === suggestionLine.trim(),
+        );
+
+        if (currentIndex === -1) {
+          return []; // Suggestion line not found, don't provide CodeLens
+        }
+
         const suggestionRange = new vscode.Range(
-          lineNumber,
+          currentIndex,
           0,
-          lineNumber,
+          currentIndex,
           suggestionLine.length,
         );
         return [
@@ -92,7 +106,7 @@ export async function addSuggestionLine(
             arguments: [
               remediateAction,
               disposable,
-              lineNumber,
+              currentIndex,
               fixedText,
               originalText,
             ],
@@ -100,7 +114,7 @@ export async function addSuggestionLine(
           new vscode.CodeLens(suggestionRange, {
             title: "Ignore",
             command: "extension.ignoreRemediation",
-            arguments: [disposable, lineNumber],
+            arguments: [disposable, currentIndex],
           }),
         ];
       },
@@ -153,6 +167,10 @@ function updateReadonlyDecorations(editor: vscode.TextEditor) {
   // Apply green highlight to the suggested line
   editor.setDecorations(suggestedLineDecorationType, [
     new vscode.Range(suggestedLineNumber, 0, suggestedLineNumber, 0),
+  ]);
+
+  editor.setDecorations(riskyLineDecorationType, [
+    new vscode.Range(suggestedLineNumber - 1, 0, suggestedLineNumber - 1, 0),
   ]);
 }
 
@@ -226,9 +244,11 @@ function unlockFile() {
     if (lockedEditor) {
       lockedEditor.setDecorations(readonlyDecorationType, []);
       lockedEditor.setDecorations(suggestedLineDecorationType, []);
+      lockedEditor.setDecorations(riskyLineDecorationType, []);
     }
     readonlyDecorationType.dispose();
     suggestedLineDecorationType.dispose();
+    riskyLineDecorationType.dispose();
     lockDisposables.forEach((d) => d.dispose());
     lockDisposables = [];
     lockedEditor = undefined;
