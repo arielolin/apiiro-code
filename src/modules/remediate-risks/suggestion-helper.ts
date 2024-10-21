@@ -1,9 +1,5 @@
 import * as vscode from "vscode";
 
-let isFileLocked = false;
-let lockedEditor: vscode.TextEditor | undefined;
-let lockDisposables: vscode.Disposable[] = [];
-let readonlyDecorationType: vscode.TextEditorDecorationType;
 let suggestedLineDecorationType: vscode.TextEditorDecorationType;
 let suggestedLineNumber: number | undefined;
 let suggestedLineContent: string | undefined;
@@ -26,15 +22,8 @@ export async function addSuggestionLine(
   // Save the file after adding the suggestion
   await document.save();
 
-  // Lock the file
-  isFileLocked = false;
-  lockedEditor = editor;
   suggestedLineNumber = lineNumber;
   suggestedLineContent = suggestionLine;
-
-  readonlyDecorationType = vscode.window.createTextEditorDecorationType({
-    opacity: "0.1",
-  });
 
   suggestedLineDecorationType = vscode.window.createTextEditorDecorationType({
     backgroundColor: "rgba(0, 255, 0, 0.2)",
@@ -46,35 +35,8 @@ export async function addSuggestionLine(
     isWholeLine: true,
   });
 
-  // Apply read-only decoration to the entire document except the suggested line
-  updateReadonlyDecorations(editor);
-
-  // Prevent edits by immediately undoing them, except for the suggested line
-  const changeDisposable = vscode.workspace.onDidChangeTextDocument((event) => {
-    if (event.document === document && isFileLocked) {
-      const changes = event.contentChanges;
-      let needsUndo = false;
-
-      for (const change of changes) {
-        if (change.range.start.line !== suggestedLineNumber) {
-          needsUndo = true;
-          break;
-        }
-      }
-
-      if (needsUndo) {
-        setTimeout(async () => {
-          await vscode.commands.executeCommand("undo");
-          await restoreSuggestedLineIfNeeded(editor);
-          vscode.window.showWarningMessage(
-            "This file is locked. Please accept or ignore the suggestion before editing.",
-          );
-        }, 0);
-      }
-    }
-  });
-
-  lockDisposables.push(changeDisposable);
+  // Apply highlight decorations
+  updateDecorations(editor);
 
   const disposable = vscode.languages.registerCodeLensProvider(
     {
@@ -121,8 +83,6 @@ export async function addSuggestionLine(
     },
   );
 
-  lockDisposables.push(disposable);
-
   vscode.commands.registerCommand(
     "extension.remediateRisk",
     async (
@@ -144,54 +104,18 @@ export async function addSuggestionLine(
   );
 }
 
-function updateReadonlyDecorations(editor: vscode.TextEditor) {
+function updateDecorations(editor: vscode.TextEditor) {
   if (suggestedLineNumber === undefined) return;
-
-  const document = editor.document;
-  const ranges: vscode.Range[] = [];
-
-  // Apply readonly decoration to all lines before the original line
-  if (suggestedLineNumber > 1) {
-    ranges.push(new vscode.Range(0, 0, suggestedLineNumber - 1, 0));
-  }
-
-  // Apply readonly decoration to all lines after the suggested line
-  if (suggestedLineNumber < document.lineCount - 1) {
-    ranges.push(
-      new vscode.Range(suggestedLineNumber + 1, 0, document.lineCount, 0),
-    );
-  }
-
-  editor.setDecorations(readonlyDecorationType, ranges);
 
   // Apply green highlight to the suggested line
   editor.setDecorations(suggestedLineDecorationType, [
     new vscode.Range(suggestedLineNumber, 0, suggestedLineNumber, 0),
   ]);
 
+  // Apply red highlight to the original line
   editor.setDecorations(riskyLineDecorationType, [
     new vscode.Range(suggestedLineNumber - 1, 0, suggestedLineNumber - 1, 0),
   ]);
-}
-
-async function restoreSuggestedLineIfNeeded(editor: vscode.TextEditor) {
-  if (suggestedLineNumber === undefined || suggestedLineContent === undefined)
-    return;
-
-  const document = editor.document;
-  if (
-    suggestedLineNumber >= document.lineCount ||
-    document.lineAt(suggestedLineNumber).text !== suggestedLineContent
-  ) {
-    const edit = new vscode.WorkspaceEdit();
-    edit.insert(
-      document.uri,
-      new vscode.Position(suggestedLineNumber, 0),
-      suggestedLineContent + "\n",
-    );
-    await vscode.workspace.applyEdit(edit);
-    updateReadonlyDecorations(editor);
-  }
 }
 
 async function remediateRisk(
@@ -201,8 +125,6 @@ async function remediateRisk(
   fixedLine: string,
   originalLine: string,
 ): Promise<void> {
-  unlockFile();
-
   await action();
 
   // Get the active text editor after the action is executed
@@ -234,38 +156,15 @@ async function remediateRisk(
     vscode.window.showErrorMessage(`Error during edit operation: ${error}`);
   }
 
+  // Clean up decorations and dispose of the CodeLens provider
+  cleanUpDecorations();
   disp.dispose();
-}
-
-function unlockFile() {
-  log("Entering unlockFile function");
-  if (isFileLocked) {
-    isFileLocked = false;
-    if (lockedEditor) {
-      lockedEditor.setDecorations(readonlyDecorationType, []);
-      lockedEditor.setDecorations(suggestedLineDecorationType, []);
-      lockedEditor.setDecorations(riskyLineDecorationType, []);
-    }
-    readonlyDecorationType.dispose();
-    suggestedLineDecorationType.dispose();
-    riskyLineDecorationType.dispose();
-    lockDisposables.forEach((d) => d.dispose());
-    lockDisposables = [];
-    lockedEditor = undefined;
-    suggestedLineNumber = undefined;
-    suggestedLineContent = undefined;
-    log("File unlocked and state reset");
-  } else {
-    log("File was not locked");
-  }
 }
 
 async function ignoreRemediation(
   disp: vscode.Disposable,
   lineNum: number,
 ): Promise<void> {
-  unlockFile();
-
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
     vscode.window.showErrorMessage("Error: No active text editor found");
@@ -282,7 +181,7 @@ async function ignoreRemediation(
 
     if (success) {
       await editor.document.save();
-      log("Document saved successfully");
+      log("Suggestion ignored and document saved successfully");
     } else {
       throw "Edit operation failed";
     }
@@ -290,7 +189,22 @@ async function ignoreRemediation(
     vscode.window.showErrorMessage(`Error during edit operation: ${error}`);
   }
 
+  cleanUpDecorations();
   disp.dispose();
+}
+
+function cleanUpDecorations() {
+  if (vscode.window.activeTextEditor) {
+    vscode.window.activeTextEditor.setDecorations(
+      suggestedLineDecorationType,
+      [],
+    );
+    vscode.window.activeTextEditor.setDecorations(riskyLineDecorationType, []);
+  }
+  suggestedLineDecorationType.dispose();
+  riskyLineDecorationType.dispose();
+  suggestedLineNumber = undefined;
+  suggestedLineContent = undefined;
 }
 
 function log(message: string) {
