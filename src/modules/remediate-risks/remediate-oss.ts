@@ -1,10 +1,11 @@
-import vscode from "vscode";
+import * as vscode from "vscode";
 import { Risk } from "../../types/risk";
 import { detectLineChanges } from "../git";
-import { RiskRemediator } from "./remediate-risks";
+import { RiskRemediation } from "./remediate-risks";
 import { Repository } from "../../types/repository";
+import { addSuggestionLine } from "./suggestion-helper";
 
-export class OSSRiskRemediator implements RiskRemediator {
+export class OSSRiskRemediation implements RiskRemediation {
   async remediate(
     editor: vscode.TextEditor,
     risk: Risk,
@@ -18,46 +19,72 @@ export class OSSRiskRemediator implements RiskRemediator {
       [risk.sourceCode.lineNumber],
       repoData,
     );
-    //@ts-ignore
     const lineNumber =
       lineChanges?.[0]?.newLineNum ?? risk.sourceCode.lineNumber;
 
     const document = editor.document;
-    //@ts-ignore
-    const componentName = risk.component.split();
+    const componentName = risk.component;
     const depKey = risk.component.split(":")[0];
     let fixVersion = "latest";
-    if ("remediationSuggestion" in risk) {
+    if (
+      "remediationSuggestion" in risk &&
+      risk.remediationSuggestion.nearestFixVersion
+    ) {
       fixVersion = risk.remediationSuggestion.nearestFixVersion;
     }
 
-    console.log(
+    vscode.window.showInformationMessage(
       `Attempting to update ${componentName} to version ${fixVersion}`,
     );
 
     const line = document.lineAt(lineNumber - 1);
-    const lineText = line.text;
+    const originalText = line.text;
 
-    if (!lineText.includes(`"${depKey}"`)) {
+    if (!originalText.includes(`"${depKey}"`)) {
       vscode.window.showInformationMessage(
-        `${depKey} was not found in the specified line:${lineText}`,
+        `${depKey} was not found in the specified line: ${originalText}`,
       );
       return;
     }
 
-    const leadingWhitespace = lineText.match(/^\s*/)?.[0] ?? "";
-    const trailingChars = lineText.match(/[,\s]*$/)?.[0] ?? "";
-    const updatedLineText = `${leadingWhitespace}"${depKey}": "${fixVersion}"${trailingChars}`;
+    const updatedLineText = this.createUpdatedLineText(
+      originalText,
+      depKey,
+      fixVersion,
+    );
 
+    await addSuggestionLine(
+      editor,
+      lineNumber,
+      originalText,
+      updatedLineText,
+      () => this.applyRemediation(editor, line.range, updatedLineText),
+    );
+  }
+
+  private createUpdatedLineText(
+    originalText: string,
+    depKey: string,
+    fixVersion: string,
+  ): string {
+    const regex = new RegExp(`("${depKey}"\\s*:\\s*)["'].*?["']`);
+    return originalText.replace(regex, `$1"${fixVersion}"`);
+  }
+
+  private async applyRemediation(
+    editor: vscode.TextEditor,
+    range: vscode.Range,
+    updatedLineText: string,
+  ): Promise<void> {
     const edit = new vscode.WorkspaceEdit();
-    edit.replace(document.uri, line.range, updatedLineText);
+    edit.replace(editor.document.uri, range, updatedLineText);
 
     const success = await vscode.workspace.applyEdit(edit);
 
     if (success) {
-      console.log(`Successfully updated ${componentName} to ${fixVersion}`);
+      console.log(`Successfully updated component`);
       vscode.window.showInformationMessage(
-        `Successfully updated ${componentName} to ${fixVersion} in the current file.`,
+        `Successfully updated component in the current file.`,
       );
       await vscode.workspace.saveAll(false);
       vscode.window.showInformationMessage(`File saved after remediation.`);
