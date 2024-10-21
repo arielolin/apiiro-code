@@ -74,7 +74,7 @@ export async function addSuggestionLine(
             ],
           }),
           new vscode.CodeLens(suggestionRange, {
-            title: "Ignore",
+            title: "Decline",
             command: "extension.ignoreRemediation",
             arguments: [disposable, currentIndex],
           }),
@@ -208,5 +208,5 @@ function cleanUpDecorations() {
 }
 
 function log(message: string) {
-  vscode.window.showInformationMessage(`[RemediateRisk] ${message}`);
+  vscode.window.showInformationMessage(`${message}`);
 }
