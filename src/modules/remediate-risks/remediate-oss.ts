@@ -53,13 +53,7 @@ export class OSSRiskRemediation implements RiskRemediation {
       fixVersion,
     );
 
-    await addSuggestionLine(
-      editor,
-      lineNumber,
-      originalText,
-      updatedLineText,
-      () => this.applyRemediation(editor, line.range, updatedLineText),
-    );
+    await addSuggestionLine(editor, lineNumber, originalText, updatedLineText);
   }
 
   private createUpdatedLineText(
@@ -69,27 +63,5 @@ export class OSSRiskRemediation implements RiskRemediation {
   ): string {
     const regex = new RegExp(`("${depKey}"\\s*:\\s*)["'].*?["']`);
     return originalText.replace(regex, `$1"${fixVersion}"`);
-  }
-
-  private async applyRemediation(
-    editor: vscode.TextEditor,
-    range: vscode.Range,
-    updatedLineText: string,
-  ): Promise<void> {
-    const edit = new vscode.WorkspaceEdit();
-    edit.replace(editor.document.uri, range, updatedLineText);
-
-    const success = await vscode.workspace.applyEdit(edit);
-
-    if (success) {
-      console.log(`Successfully updated component`);
-      vscode.window.showInformationMessage(
-        `Successfully updated component in the current file.`,
-      );
-      await vscode.workspace.saveAll(false);
-      vscode.window.showInformationMessage(`File saved after remediation.`);
-    } else {
-      throw new Error("Failed to apply the edit to the current file");
-    }
   }
 }
