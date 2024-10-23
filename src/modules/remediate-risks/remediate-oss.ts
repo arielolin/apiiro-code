@@ -6,6 +6,10 @@ import { Repository } from "../../types/repository";
 import { addSuggestionLine } from "./suggestion-helper";
 
 export class OSSRiskRemediation implements RiskRemediation {
+  private onRiskRemediation: () => void;
+  constructor(onRiskRemediation: () => void) {
+    this.onRiskRemediation = onRiskRemediation;
+  }
   async remediate(
     editor: vscode.TextEditor,
     risk: Risk,
@@ -53,7 +57,13 @@ export class OSSRiskRemediation implements RiskRemediation {
       fixVersion,
     );
 
-    await addSuggestionLine(editor, lineNumber, originalText, updatedLineText);
+    await addSuggestionLine(
+      editor,
+      lineNumber,
+      originalText,
+      updatedLineText,
+      this.onRiskRemediation,
+    );
   }
 
   private createUpdatedLineText(

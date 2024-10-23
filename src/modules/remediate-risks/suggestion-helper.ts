@@ -10,6 +10,7 @@ export async function addSuggestionLine(
   lineNumber: number,
   originalText: string,
   fixedText: string,
+  onRiskRemediation: () => void,
 ): Promise<void> {
   const document = editor.document;
   const position = new vscode.Position(lineNumber, 0);
@@ -46,30 +47,33 @@ export async function addSuggestionLine(
       provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
         // Find the current position of the suggested line
         const lines = document.getText().split("\n");
-        const currentIndex = lines.findIndex(
+        const suggestedLine = lines.findIndex(
           (line) => line.trim() === suggestionLine.trim(),
         );
+        const originalLine = lines.findIndex(
+          (line) => line.trim() === originalText.trim(),
+        );
 
-        if (currentIndex === -1) {
+        if (suggestedLine === -1) {
           return []; // Suggestion line not found, don't provide CodeLens
         }
 
         const suggestionRange = new vscode.Range(
-          currentIndex,
+          suggestedLine,
           0,
-          currentIndex,
+          suggestedLine,
           suggestionLine.length,
         );
         return [
           new vscode.CodeLens(suggestionRange, {
             title: "Accept",
-            command: "extension.remediateRisk",
-            arguments: [disposable, currentIndex, fixedText, originalText],
+            command: "extension.acceptSuggestion",
+            arguments: [disposable, originalLine],
           }),
           new vscode.CodeLens(suggestionRange, {
             title: "Decline",
-            command: "extension.ignoreRemediation",
-            arguments: [disposable, currentIndex],
+            command: "extension.ignoreSuggestion",
+            arguments: [disposable, suggestedLine],
           }),
         ];
       },
@@ -77,19 +81,15 @@ export async function addSuggestionLine(
   );
 
   vscode.commands.registerCommand(
-    "extension.remediateRisk",
-    async (
-      disp: vscode.Disposable,
-      lineNum: number,
-      fixedLine: string,
-      originalLine: string,
-    ) => {
-      await remediateRisk(disp, lineNum, fixedLine, originalLine);
+    "extension.acceptSuggestion",
+    async (disp: vscode.Disposable, originalLineNum: number) => {
+      await acceptSuggestion(disp, originalLineNum);
+      onRiskRemediation();
     },
   );
 
   vscode.commands.registerCommand(
-    "extension.ignoreRemediation",
+    "extension.ignoreSuggestion",
     async (disp: vscode.Disposable, lineNum: number) => {
       await ignoreRemediation(disp, lineNum);
     },
@@ -110,13 +110,10 @@ function updateDecorations(editor: vscode.TextEditor) {
   ]);
 }
 
-async function remediateRisk(
+async function acceptSuggestion(
   disp: vscode.Disposable,
-  lineNum: number,
-  fixedLine: string,
-  originalLine: string,
+  originalLineNum: number,
 ): Promise<void> {
-  // Get the active text editor after the action is executed
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
     log("Error: No active text editor found after action execution");
@@ -126,13 +123,9 @@ async function remediateRisk(
   try {
     const success = await editor.edit(
       (editBuilder) => {
-        // Replace the original line with the fixed line
-        editBuilder.replace(
-          new vscode.Range(lineNum - 1, 0, lineNum - 1, originalLine.length),
-          fixedLine,
+        editBuilder.delete(
+          new vscode.Range(originalLineNum, 0, originalLineNum + 1, 0),
         );
-
-        editBuilder.delete(new vscode.Range(lineNum, 0, lineNum + 1, 0));
       },
       { undoStopBefore: true, undoStopAfter: true },
     );

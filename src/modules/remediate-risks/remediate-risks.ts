@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { detectLineChanges } from "../git";
-import { OSSRisk, Risk } from "../../types/risk";
+
+import { Risk } from "../../types/risk";
 import { OSSRiskRemediation } from "./remediate-oss";
 import { Repository } from "../../types/repository";
 
@@ -13,10 +13,13 @@ export interface RiskRemediation {
 }
 
 class RiskRemediationFactory {
-  static createRemediation(riskCategory: string): RiskRemediation {
+  static createRemediation(
+    riskCategory: string,
+    onRiskRemediation: () => void,
+  ): RiskRemediation {
     switch (riskCategory) {
       case "OSS Security":
-        return new OSSRiskRemediation();
+        return new OSSRiskRemediation(onRiskRemediation);
       default:
         throw new Error(`Unsupported risk category: ${riskCategory}`);
     }
@@ -27,10 +30,12 @@ export async function remediateRisk(
   editor: vscode.TextEditor,
   risk: Risk,
   repoData: Repository | undefined,
+  onRiskRemediation: () => void,
 ): Promise<void> {
   try {
     const remediation = RiskRemediationFactory.createRemediation(
       risk.riskCategory,
+      onRiskRemediation,
     );
     await remediation.remediate(editor, risk, repoData);
   } catch (error: any) {

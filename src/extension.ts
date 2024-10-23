@@ -119,8 +119,13 @@ export async function activate(context: vscode.ExtensionContext) {
       if (editor) {
         preventHighlights = true;
         await riskHighlighter.removeAllHighlights(editor);
-        await remediateRisk(editor, risk, repoData);
-        preventHighlights = false;
+        await remediateRisk(
+          editor,
+          risk,
+          repoData,
+          () => (preventHighlights = false),
+        );
+        //
       }
     },
   );
