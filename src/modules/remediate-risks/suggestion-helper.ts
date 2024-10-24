@@ -92,6 +92,7 @@ export async function addSuggestionLine(
     "extension.ignoreSuggestion",
     async (disp: vscode.Disposable, lineNum: number) => {
       await ignoreSuggestion(disp, lineNum);
+      onRiskRemediation();
     },
   );
 }
