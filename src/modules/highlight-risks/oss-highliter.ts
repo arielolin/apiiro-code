@@ -51,7 +51,7 @@ ${remediationSuggestions}
 
  **Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
  
-  ${hasRemedy(risk) ? `\n🔧 [Remediate](command:apiiro-code.remediate?${encodedRisk})` : ""}
+  ${hasRemedy(risk) ? `\n🔧 [Remediate](command:apiiro-code.remediate?${encodedRisk})` : ""}`;
 }
 
 function getCVSSEmoji(cvss: number): string {

@@ -8,11 +8,10 @@ export function createSecretsMessage(
   encodedRisk: string,
 ): string {
   const severityIcon = getSeverityIcon(risk.riskLevel);
-  const secretTypeIcon = getSecretTypeIcon(risk.secretType);
 
   return `### ${severityIcon} ${risk.riskLevel} severity risk: ${risk.findingName || risk.ruleName}
 
-**Secret type:** ${secretTypeIcon} ${risk.secretType}
+**Secret type:**  ${risk.secretType ?? "N/A"}
 
 **Discovered on:** ${new Date(risk.discoveredOn).toLocaleString()}
 
@@ -20,23 +19,9 @@ export function createSecretsMessage(
 
 **Exposure:** ${risk.exposure}
 
-**Appearances:** Appears ${risk.previewLines.length} time${risk.previewLines.length > 1 ? "s" : ""} in the file
 
 **Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
  
 ${hasRemedy(risk) ? `\n[Remediate](command:apiiro-code.remediate?${encodedRisk})` : ""}
 `;
-}
-
-function getSecretTypeIcon(secretType: string): string {
-  switch (secretType.toLowerCase()) {
-    case "github access token":
-      return "🐙";
-    case "aws access key":
-      return "☁️";
-    case "private key":
-      return "🔑";
-    default:
-      return "🔒";
-  }
 }
