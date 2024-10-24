@@ -42,7 +42,7 @@ export function createOSSMessage(risk: OSSRisk, encodedRisk: string): string {
 
 🔗 **Type:** ${risk.type}
 
-**Discovered on:** ${risk.discoveredOn}
+**Discovered on:** ${new Date(risk.discoveredOn).toLocaleString()}
 
 
 ${vulnerabilitiesInfo}

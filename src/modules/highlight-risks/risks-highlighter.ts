@@ -217,8 +217,11 @@ export class RiskHighlighter {
 
     return `### ${severityIcon} ${risk.riskLevel} severity: ${risk.findingName || risk.ruleName}
 **Risk Category:** ${risk.riskCategory}
-**Discovered on:** ${risk.discoveredOn}
+
+**Discovered on:** ${new Date(risk.discoveredOn).toLocaleString()}
+
 **Description:** ${risk.ruleName}
+
 **Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
 
 ${hasRemedy(risk) ? `\n[Remediate](command:apiiro-code.remediate?${encodedRisk})` : ""}
