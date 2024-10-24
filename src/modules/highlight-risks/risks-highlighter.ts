@@ -216,6 +216,9 @@ export class RiskHighlighter {
     const severityIcon = getSeverityIcon(risk.riskLevel);
 
     return `### ${severityIcon} ${risk.riskLevel} severity: ${risk.findingName || risk.ruleName}
+    
+${hasRemedy(risk) ? `\n[Remediate](command:apiiro-code.remediate?${encodedRisk})` : ""}
+
 **Risk Category:** ${risk.riskCategory}
 
 **Discovered on:** ${new Date(risk.discoveredOn).toLocaleString()}

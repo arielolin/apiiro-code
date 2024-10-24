@@ -4,14 +4,21 @@ let suggestedLineDecorationType: vscode.TextEditorDecorationType;
 let suggestedLineNumber: number | undefined;
 let suggestedLineContent: string | undefined;
 let riskyLineDecorationType: vscode.TextEditorDecorationType;
+let afterSuggestionCallback: (() => void) | undefined;
+let currentCodeLensDisposable: vscode.Disposable | undefined;
+let currentUndoListenerDisposable: vscode.Disposable | undefined;
+let commandsDisposable: vscode.Disposable[] | undefined;
 
 export async function addSuggestionLine(
   editor: vscode.TextEditor,
   lineNumber: number,
   originalText: string,
   fixedText: string,
-  onRiskRemediation: () => void,
+  callback: () => void,
 ): Promise<void> {
+  // Clean up any existing disposables first
+  cleanUpDisposables();
+
   const document = editor.document;
   const position = new vscode.Position(lineNumber, 0);
   const suggestionLine = fixedText;
@@ -24,6 +31,7 @@ export async function addSuggestionLine(
 
   suggestedLineNumber = lineNumber;
   suggestedLineContent = suggestionLine;
+  afterSuggestionCallback = callback;
 
   suggestedLineDecorationType = vscode.window.createTextEditorDecorationType({
     backgroundColor: "rgba(0, 255, 0, 0.2)",
@@ -38,7 +46,40 @@ export async function addSuggestionLine(
   // Apply highlight decorations
   updateDecorations(editor);
 
-  const disposable = vscode.languages.registerCodeLensProvider(
+  // Register undo event listener
+  currentUndoListenerDisposable = vscode.workspace.onDidChangeTextDocument(
+    (event) => {
+      if (
+        event.contentChanges.length > 0 &&
+        event.document === editor.document &&
+        suggestedLineContent !== undefined
+      ) {
+        // Check if the suggestion line was removed
+        const text = event.document.getText();
+        if (!text.includes(suggestedLineContent)) {
+          cleanUpAndNotify();
+        }
+      }
+    },
+  );
+
+  // Register commands
+  commandsDisposable = [
+    vscode.commands.registerCommand(
+      "extension.acceptSuggestion",
+      async (originalLineNum: number) => {
+        await acceptSuggestion(originalLineNum);
+      },
+    ),
+    vscode.commands.registerCommand(
+      "extension.ignoreSuggestion",
+      async (lineNum: number) => {
+        await ignoreSuggestion(lineNum);
+      },
+    ),
+  ];
+
+  currentCodeLensDisposable = vscode.languages.registerCodeLensProvider(
     {
       language: "*",
       scheme: "file",
@@ -68,31 +109,15 @@ export async function addSuggestionLine(
           new vscode.CodeLens(suggestionRange, {
             title: "Accept",
             command: "extension.acceptSuggestion",
-            arguments: [disposable, originalLine],
+            arguments: [originalLine],
           }),
           new vscode.CodeLens(suggestionRange, {
             title: "Decline",
             command: "extension.ignoreSuggestion",
-            arguments: [disposable, suggestedLine],
+            arguments: [suggestedLine],
           }),
         ];
       },
-    },
-  );
-
-  vscode.commands.registerCommand(
-    "extension.acceptSuggestion",
-    async (disp: vscode.Disposable, originalLineNum: number) => {
-      await acceptSuggestion(disp, originalLineNum);
-      onRiskRemediation();
-    },
-  );
-
-  vscode.commands.registerCommand(
-    "extension.ignoreSuggestion",
-    async (disp: vscode.Disposable, lineNum: number) => {
-      await ignoreSuggestion(disp, lineNum);
-      onRiskRemediation();
     },
   );
 }
@@ -111,13 +136,12 @@ function updateDecorations(editor: vscode.TextEditor) {
   ]);
 }
 
-async function acceptSuggestion(
-  disp: vscode.Disposable,
-  originalLineNum: number,
-): Promise<void> {
+async function acceptSuggestion(originalLineNum: number): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
-    log("Error: No active text editor found after action execution");
+    vscode.window.showErrorMessage(
+      "Error: No active text editor found after action execution",
+    );
     return;
   }
 
@@ -133,21 +157,18 @@ async function acceptSuggestion(
 
     if (success) {
       await editor.document.save();
-      log("Risk remediated and document saved successfully");
+      vscode.window.showInformationMessage(
+        "Risk remediated and document saved successfully",
+      );
     }
   } catch (error) {
     vscode.window.showErrorMessage(`Error during edit operation: ${error}`);
   }
 
-  // Clean up decorations and dispose of the CodeLens provider
-  cleanUpDecorations();
-  disp.dispose();
+  cleanUpAndNotify();
 }
 
-async function ignoreSuggestion(
-  disp: vscode.Disposable,
-  lineNum: number,
-): Promise<void> {
+async function ignoreSuggestion(lineNum: number): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
     vscode.window.showErrorMessage("Error: No active text editor found");
@@ -164,7 +185,9 @@ async function ignoreSuggestion(
 
     if (success) {
       await editor.document.save();
-      log("Suggestion ignored and document saved successfully");
+      vscode.window.showInformationMessage(
+        "Suggestion ignored and document saved successfully",
+      );
     } else {
       throw "Edit operation failed";
     }
@@ -172,8 +195,16 @@ async function ignoreSuggestion(
     vscode.window.showErrorMessage(`Error during edit operation: ${error}`);
   }
 
+  cleanUpAndNotify();
+}
+
+function cleanUpAndNotify() {
   cleanUpDecorations();
-  disp.dispose();
+  cleanUpDisposables();
+  if (afterSuggestionCallback) {
+    afterSuggestionCallback();
+    afterSuggestionCallback = undefined;
+  }
 }
 
 function cleanUpDecorations() {
@@ -190,6 +221,17 @@ function cleanUpDecorations() {
   suggestedLineContent = undefined;
 }
 
-function log(message: string) {
-  vscode.window.showInformationMessage(`${message}`);
+function cleanUpDisposables() {
+  if (currentCodeLensDisposable) {
+    currentCodeLensDisposable.dispose();
+    currentCodeLensDisposable = undefined;
+  }
+  if (currentUndoListenerDisposable) {
+    currentUndoListenerDisposable.dispose();
+    currentUndoListenerDisposable = undefined;
+  }
+  if (commandsDisposable) {
+    commandsDisposable.forEach((d) => d.dispose());
+    commandsDisposable = undefined;
+  }
 }
