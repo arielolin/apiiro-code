@@ -115,6 +115,10 @@ export async function activate(context: vscode.ExtensionContext) {
   const remediateDisposable = vscode.commands.registerCommand(
     "apiiro-code.remediate",
     async (risk) => {
+      if (preventHighlights) {
+        vscode.window.showInformationMessage("Risk remediation is in progress");
+        return;
+      }
       const editor = vscode.window.activeTextEditor;
       if (editor) {
         preventHighlights = true;
@@ -125,7 +129,6 @@ export async function activate(context: vscode.ExtensionContext) {
           repoData,
           () => (preventHighlights = false),
         );
-        //
       }
     },
   );
