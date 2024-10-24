@@ -3,7 +3,7 @@ import { hasRemedy } from "../remediate-risks/remediate-risks";
 import { getSeverityIcon } from "./utils";
 import { getEnvironmentData } from "../../api";
 
-export function createSCAMessage(risk: OSSRisk, encodedRisk: string): string {
+export function createOSSMessage(risk: OSSRisk, encodedRisk: string): string {
   const severityEmoji = getSeverityIcon(risk.riskLevel);
 
   let vulnerabilitiesInfo = "";
@@ -36,6 +36,7 @@ export function createSCAMessage(risk: OSSRisk, encodedRisk: string): string {
   }
 
   return `### ${severityEmoji} ${risk.riskLevel} severity risk: ${risk.findingName || risk.ruleName}
+  ${hasRemedy(risk) ? `\n🔧 [Remediate](command:apiiro-code.remediate?${encodedRisk})` : ""}
 
 📦 **Dependency:** ${risk.dependencyName}
 

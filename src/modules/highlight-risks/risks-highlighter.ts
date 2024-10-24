@@ -7,7 +7,7 @@ import { hasRemedy } from "../remediate-risks/remediate-risks";
 import { Repository } from "../../types/repository";
 import { getSeverityIcon } from "./utils";
 import { createSecretsMessage } from "./secrets-highliter";
-import { createSCAMessage } from "./oss-highliter";
+import { createOSSMessage } from "./oss-highliter";
 
 export class RiskHighlighter {
   private readonly risksDecoration: vscode.TextEditorDecorationType;
@@ -197,7 +197,7 @@ export class RiskHighlighter {
         const encodedRisk = encodeURIComponent(JSON.stringify(risk));
 
         if (risk.riskCategory === "OSS Security") {
-          return createSCAMessage(risk as OSSRisk, encodedRisk);
+          return createOSSMessage(risk as OSSRisk, encodedRisk);
         } else if (risk.riskCategory === "Secrets") {
           return createSecretsMessage(risk as SecretsRisk, encodedRisk);
         } else {
