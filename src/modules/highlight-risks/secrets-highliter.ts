@@ -14,6 +14,8 @@ export function createSecretsMessage(
 
 **Secret type:** ${secretTypeIcon} ${risk.secretType}
 
+**Discovered on:** ${risk.discoveredOn}
+
 **Validity:** ${risk.validity}${risk.lastValidatedOn ? `. Last checked as invalid: ${new Date(risk.lastValidatedOn).toLocaleString()}` : ""}
 
 **Exposure:** ${risk.exposure}

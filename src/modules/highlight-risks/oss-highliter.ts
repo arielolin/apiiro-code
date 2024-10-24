@@ -42,6 +42,8 @@ export function createOSSMessage(risk: OSSRisk, encodedRisk: string): string {
 
 🔗 **Type:** ${risk.type}
 
+**Discovered on:** ${risk.discoveredOn}
+
 
 ${vulnerabilitiesInfo}
 

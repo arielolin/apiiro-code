@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { findRisks } from "../../api";
+import { findRisks, getEnvironmentData } from "../../api";
 import { OSSRisk, Risk, SecretsRisk } from "../../types/risk";
 import { detectLineChanges } from "../git";
 import { getRelativeFilePath } from "../../utils/vs-code";
@@ -215,9 +215,11 @@ export class RiskHighlighter {
   private createDefaultMessage(risk: Risk, encodedRisk: string): string {
     const severityIcon = getSeverityIcon(risk.riskLevel);
 
-    return `**${severityIcon} ${risk.riskLevel} severity: ${risk.findingName || risk.ruleName}**
-* Risk Category: ${risk.riskCategory}
-* Description: ${risk.ruleName}
+    return `### ${severityIcon} ${risk.riskLevel} severity: ${risk.findingName || risk.ruleName}
+**Risk Category:** ${risk.riskCategory}
+**Discovered on:** ${risk.discoveredOn}
+**Description:** ${risk.ruleName}
+**Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
 
 ${hasRemedy(risk) ? `\n[Remediate](command:apiiro-code.remediate?${encodedRisk})` : ""}
 `;

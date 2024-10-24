@@ -131,11 +131,13 @@ async function fetchRisksPage(
   skip: number,
 ): Promise<{ risks: Risk[]; totalItemCount: number }> {
   const response = await axiosInstance.get(
-    `/risks/${riskCategory.toLowerCase()}`,
+    riskCategory === "Api" ? `/risks` : `/risks/${riskCategory.toLowerCase()}`,
     {
       params: {
         ...params,
-        "filters[RiskCategory]": riskCategory,
+        ...(riskCategory !== "Api" && {
+          "filters[RiskCategory]": riskCategory,
+        }),
         skip,
       },
       paramsSerializer,
@@ -165,7 +167,7 @@ async function fetchAllRisks(
   const totalItemCount = initialPage.totalItemCount;
 
   if (totalItemCount <= PAGE_SIZE) {
-    return allRisks; // Early return for small datasets
+    return allRisks;
   }
 
   const remainingPages = Math.ceil((totalItemCount - PAGE_SIZE) / PAGE_SIZE);
@@ -223,12 +225,14 @@ export async function findRisks(
         .join("&");
     };
 
-    const [ossRisks, secretsRisks] = await Promise.all([
+    const [ossRisks, secretsRisks, sastRisks, apiRisks] = await Promise.all([
       fetchAllRisks(axiosInstance, "OSS", params, paramsSerializer),
       fetchAllRisks(axiosInstance, "Secrets", params, paramsSerializer),
+      fetchAllRisks(axiosInstance, "SAST", params, paramsSerializer),
+      fetchAllRisks(axiosInstance, "Api", params, paramsSerializer),
     ]);
 
-    const allRisks = [...ossRisks, ...secretsRisks];
+    const allRisks = [...ossRisks, ...secretsRisks, ...sastRisks, ...apiRisks];
 
     cache.set(cacheKey, allRisks);
     return allRisks;
