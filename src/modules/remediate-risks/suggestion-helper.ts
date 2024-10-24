@@ -91,7 +91,7 @@ export async function addSuggestionLine(
   vscode.commands.registerCommand(
     "extension.ignoreSuggestion",
     async (disp: vscode.Disposable, lineNum: number) => {
-      await ignoreRemediation(disp, lineNum);
+      await ignoreSuggestion(disp, lineNum);
     },
   );
 }
@@ -143,7 +143,7 @@ async function acceptSuggestion(
   disp.dispose();
 }
 
-async function ignoreRemediation(
+async function ignoreSuggestion(
   disp: vscode.Disposable,
   lineNum: number,
 ): Promise<void> {
