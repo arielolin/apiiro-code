@@ -9,9 +9,47 @@ import { getSeverityIcon } from "./utils";
 import { createSecretsMessage } from "./secrets-highliter";
 import { createOSSMessage } from "./oss-highliter";
 
+class RiskRemediationCodeLensProvider implements vscode.CodeLensProvider {
+  private groupedRisks: Map<number, Risk[]> = new Map();
+  private _onDidChangeCodeLenses = new vscode.EventEmitter<void>();
+  public readonly onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
+
+  public updateRisks(risks: Map<number, Risk[]>) {
+    this.groupedRisks = risks;
+    this._onDidChangeCodeLenses.fire(); // Force CodeLens refresh
+  }
+
+  async provideCodeLenses(
+    document: vscode.TextDocument,
+  ): Promise<vscode.CodeLens[]> {
+    const codeLenses: vscode.CodeLens[] = [];
+
+    for (const [lineNumber, risks] of this.groupedRisks.entries()) {
+      const remediableRisk = risks.find((risk) => hasRemedy(risk));
+      if (remediableRisk) {
+        const range = new vscode.Range(
+          new vscode.Position(lineNumber - 1, 0),
+          new vscode.Position(lineNumber - 1, 0),
+        );
+
+        codeLenses.push(
+          new vscode.CodeLens(range, {
+            title: "Remediate 🔧",
+            command: "apiiro-code.remediate",
+            arguments: [remediableRisk],
+          }),
+        );
+      }
+    }
+
+    return codeLenses;
+  }
+}
+
 export class RiskHighlighter {
   private readonly risksDecoration: vscode.TextEditorDecorationType;
   private readonly diagnosticsCollection: vscode.DiagnosticCollection;
+  private readonly codeLensProvider: RiskRemediationCodeLensProvider;
 
   constructor(context: vscode.ExtensionContext) {
     this.risksDecoration = vscode.window.createTextEditorDecorationType({
@@ -21,9 +59,15 @@ export class RiskHighlighter {
     });
 
     this.diagnosticsCollection = vscode.languages.createDiagnosticCollection();
+    this.codeLensProvider = new RiskRemediationCodeLensProvider();
+
     context.subscriptions.push(
       this.risksDecoration,
       this.diagnosticsCollection,
+      vscode.languages.registerCodeLensProvider(
+        { scheme: "file" },
+        this.codeLensProvider,
+      ),
     );
   }
 
@@ -44,8 +88,10 @@ export class RiskHighlighter {
         return;
       }
 
-      await this.applyInlineHighlights(editor, risks, repoData);
-      await this.updateDiagnostics(editor, risks, repoData);
+      const groupedRisks = await this.groupRisksByLine(risks, repoData);
+      await this.applyInlineHighlights(editor, groupedRisks);
+      await this.updateDiagnostics(editor, groupedRisks);
+      this.codeLensProvider.updateRisks(groupedRisks);
     } catch (error) {
       vscode.window.showErrorMessage(
         `Error in highlightRisks: ${error instanceof Error ? error.message : String(error)}`,
@@ -56,14 +102,13 @@ export class RiskHighlighter {
   public removeAllHighlights(editor: vscode.TextEditor): void {
     editor.setDecorations(this.risksDecoration, []);
     this.diagnosticsCollection.clear();
+    this.codeLensProvider.updateRisks(new Map());
   }
 
   private async applyInlineHighlights(
     editor: vscode.TextEditor,
-    risks: Risk[],
-    repoData: Repository,
+    groupedRisks: Map<number, Risk[]>,
   ): Promise<void> {
-    const groupedRisks = await this.groupRisksByLine(risks, repoData);
     const decorations = await this.createDecorations(editor, groupedRisks);
     this.removeAllHighlights(editor);
     editor.setDecorations(this.risksDecoration, decorations);
@@ -73,11 +118,9 @@ export class RiskHighlighter {
 
   private async updateDiagnostics(
     editor: vscode.TextEditor,
-    risks: Risk[],
-    repoData: Repository,
+    groupedRisks: Map<number, Risk[]>,
   ): Promise<void> {
     const diagnostics: vscode.Diagnostic[] = [];
-    const groupedRisks = await this.groupRisksByLine(risks, repoData);
 
     for (const [lineNumber, risks] of groupedRisks.entries()) {
       const range = editor.document.lineAt(lineNumber - 1).range;
@@ -132,7 +175,7 @@ export class RiskHighlighter {
         const { hasChanged, newLineNum } = lineChanges[i];
 
         const lineNumber = hasChanged
-          ? -1 // setting changed risk line to -1 to prevent deletion of risks moved to this line
+          ? -1
           : newLineNum
             ? newLineNum
             : risk.sourceCode.lineNumber;
