@@ -1,0 +1,42 @@
+import vscode from "vscode";
+import { Risk } from "../../types/risk";
+import { hasRemedy } from "./remediate-risks";
+
+export class RiskRemediationTriggerCodeLensProvider
+  implements vscode.CodeLensProvider
+{
+  private groupedRisks: Map<number, Risk[]> = new Map();
+  private _onDidChangeCodeLenses = new vscode.EventEmitter<void>();
+  public readonly onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
+
+  public updateRisks(risks: Map<number, Risk[]>) {
+    this.groupedRisks = risks;
+    this._onDidChangeCodeLenses.fire(); // Force CodeLens refresh
+  }
+
+  async provideCodeLenses(
+    document: vscode.TextDocument,
+  ): Promise<vscode.CodeLens[]> {
+    const codeLenses: vscode.CodeLens[] = [];
+
+    for (const [lineNumber, risks] of this.groupedRisks.entries()) {
+      const remediableRisk = risks.find((risk) => hasRemedy(risk));
+      if (remediableRisk) {
+        const range = new vscode.Range(
+          new vscode.Position(lineNumber - 1, 0),
+          new vscode.Position(lineNumber - 1, 0),
+        );
+
+        codeLenses.push(
+          new vscode.CodeLens(range, {
+            title: "🔧 Remediate",
+            command: "apiiro-code.remediate",
+            arguments: [remediableRisk],
+          }),
+        );
+      }
+    }
+
+    return codeLenses;
+  }
+}

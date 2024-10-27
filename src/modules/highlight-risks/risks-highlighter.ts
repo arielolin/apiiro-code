@@ -3,53 +3,17 @@ import { findRisks, getEnvironmentData } from "../../api";
 import { OSSRisk, Risk, SecretsRisk } from "../../types/risk";
 import { detectLineChanges } from "../git";
 import { getRelativeFilePath } from "../../utils/vs-code";
-import { hasRemedy } from "../remediate-risks/remediate-risks";
 import { Repository } from "../../types/repository";
-import { getSeverityIcon } from "./utils";
-import { createSecretsMessage } from "./secrets-highliter";
-import { createOSSMessage } from "./oss-highliter";
 
-class RiskRemediationCodeLensProvider implements vscode.CodeLensProvider {
-  private groupedRisks: Map<number, Risk[]> = new Map();
-  private _onDidChangeCodeLenses = new vscode.EventEmitter<void>();
-  public readonly onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
-
-  public updateRisks(risks: Map<number, Risk[]>) {
-    this.groupedRisks = risks;
-    this._onDidChangeCodeLenses.fire(); // Force CodeLens refresh
-  }
-
-  async provideCodeLenses(
-    document: vscode.TextDocument,
-  ): Promise<vscode.CodeLens[]> {
-    const codeLenses: vscode.CodeLens[] = [];
-
-    for (const [lineNumber, risks] of this.groupedRisks.entries()) {
-      const remediableRisk = risks.find((risk) => hasRemedy(risk));
-      if (remediableRisk) {
-        const range = new vscode.Range(
-          new vscode.Position(lineNumber - 1, 0),
-          new vscode.Position(lineNumber - 1, 0),
-        );
-
-        codeLenses.push(
-          new vscode.CodeLens(range, {
-            title: "Remediate 🔧",
-            command: "apiiro-code.remediate",
-            arguments: [remediableRisk],
-          }),
-        );
-      }
-    }
-
-    return codeLenses;
-  }
-}
+import { RiskRemediationTriggerCodeLensProvider } from "../remediate-risks/remediation-trigger-code-lense";
+import { createDefaultMessage } from "../create-hover-message/default-hover-message";
+import { createSecretsMessage } from "../create-hover-message/secrets-hover-message";
+import { createOSSMessage } from "../create-hover-message/oss-hover-message";
 
 export class RiskHighlighter {
   private readonly risksDecoration: vscode.TextEditorDecorationType;
   private readonly diagnosticsCollection: vscode.DiagnosticCollection;
-  private readonly codeLensProvider: RiskRemediationCodeLensProvider;
+  private readonly codeLensProvider: RiskRemediationTriggerCodeLensProvider;
 
   constructor(context: vscode.ExtensionContext) {
     this.risksDecoration = vscode.window.createTextEditorDecorationType({
@@ -59,7 +23,7 @@ export class RiskHighlighter {
     });
 
     this.diagnosticsCollection = vscode.languages.createDiagnosticCollection();
-    this.codeLensProvider = new RiskRemediationCodeLensProvider();
+    this.codeLensProvider = new RiskRemediationTriggerCodeLensProvider();
 
     context.subscriptions.push(
       this.risksDecoration,
@@ -237,14 +201,12 @@ export class RiskHighlighter {
   private createHoverMessage(risks: Risk[]): vscode.MarkdownString {
     const message = risks
       .map((risk) => {
-        const encodedRisk = encodeURIComponent(JSON.stringify(risk));
-
         if (risk.riskCategory === "OSS Security") {
-          return createOSSMessage(risk as OSSRisk, encodedRisk);
+          return createOSSMessage(risk as OSSRisk);
         } else if (risk.riskCategory === "Secrets") {
-          return createSecretsMessage(risk as SecretsRisk, encodedRisk);
+          return createSecretsMessage(risk as SecretsRisk);
         } else {
-          return this.createDefaultMessage(risk, encodedRisk);
+          return createDefaultMessage(risk);
         }
       })
       .join("\n\n---\n\n");
@@ -253,25 +215,6 @@ export class RiskHighlighter {
     markdownMessage.isTrusted = true;
     markdownMessage.supportHtml = true;
     return markdownMessage;
-  }
-
-  private createDefaultMessage(risk: Risk, encodedRisk: string): string {
-    const severityIcon = getSeverityIcon(risk.riskLevel);
-
-    return `### ${severityIcon} ${risk.riskLevel} severity: ${risk.findingName || risk.ruleName}
-    
-${hasRemedy(risk) ? `\n[Remediate](command:apiiro-code.remediate?${encodedRisk})` : ""}
-
-**Risk Category:** ${risk.riskCategory}
-
-**Discovered on:** ${new Date(risk.discoveredOn).toLocaleString()}
-
-**Description:** ${risk.ruleName}
-
-**Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
-
-${hasRemedy(risk) ? `\n[Remediate](command:apiiro-code.remediate?${encodedRisk})` : ""}
-`;
   }
 
   private createInlineRiskDescription(riskTypes: string[]): string {

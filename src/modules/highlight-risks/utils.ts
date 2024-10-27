@@ -3,6 +3,7 @@ export function getSeverityIcon(riskLevel: string): string {
     case "critical":
       return "🚨";
     case "high":
+      return "❗";
     case "medium":
       return "☢️";
     case "low":

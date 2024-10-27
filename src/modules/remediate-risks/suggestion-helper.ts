@@ -16,7 +16,6 @@ export async function addSuggestionLine(
   fixedText: string,
   callback: () => void,
 ): Promise<void> {
-  // Clean up any existing disposables first
   cleanUpDisposables();
 
   const document = editor.document;

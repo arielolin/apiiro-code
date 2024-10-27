@@ -1,13 +1,11 @@
 import { SecretsRisk } from "../../types/risk";
-import { getSeverityIcon } from "./utils";
+import { getSeverityIcon } from "../highlight-risks/utils";
 import { hasRemedy } from "../remediate-risks/remediate-risks";
 import { getEnvironmentData } from "../../api";
 
-export function createSecretsMessage(
-  risk: SecretsRisk,
-  encodedRisk: string,
-): string {
+export function createSecretsMessage(risk: SecretsRisk): string {
   const severityIcon = getSeverityIcon(risk.riskLevel);
+  const encodedRisk = encodeURIComponent(JSON.stringify(risk));
 
   return `### ${severityIcon} ${risk.riskLevel} severity risk: ${risk.findingName || risk.ruleName}
 

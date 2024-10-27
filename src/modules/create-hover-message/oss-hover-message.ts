@@ -1,9 +1,10 @@
 import { OSSRisk } from "../../types/risk";
 import { hasRemedy } from "../remediate-risks/remediate-risks";
-import { getSeverityIcon } from "./utils";
+import { getSeverityIcon } from "../highlight-risks/utils";
 import { getEnvironmentData } from "../../api";
 
-export function createOSSMessage(risk: OSSRisk, encodedRisk: string): string {
+export function createOSSMessage(risk: OSSRisk): string {
+  const encodedRisk = encodeURIComponent(JSON.stringify(risk));
   const severityEmoji = getSeverityIcon(risk.riskLevel);
 
   let vulnerabilitiesInfo = "";
