@@ -54,8 +54,8 @@ export class RiskHighlighter {
 
       const groupedRisks = await this.groupRisksByLine(risks, repoData);
       await this.applyInlineHighlights(editor, groupedRisks);
-      await this.updateDiagnostics(editor, groupedRisks);
       this.codeLensProvider.updateRisks(groupedRisks);
+      this.updateDiagnostics(editor, groupedRisks);
     } catch (error) {
       vscode.window.showErrorMessage(
         `Error in highlightRisks: ${error instanceof Error ? error.message : String(error)}`,

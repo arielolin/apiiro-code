@@ -45,5 +45,8 @@ export async function remediateRisk(
 }
 
 export function hasRemedy(risk: Risk): boolean {
-  return !!("remediationSuggestion" in risk && risk.remediationSuggestion);
+  return (
+    risk.sourceCode.filePath.includes("package.json") &&
+    !!("remediationSuggestion" in risk && risk.remediationSuggestion)
+  );
 }
