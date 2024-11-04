@@ -1,14 +1,13 @@
 import * as vscode from "vscode";
-import { findRisks, getEnvironmentData } from "../../api";
+import { findRisks } from "../../api";
 import { OSSRisk, Risk, SecretsRisk } from "../../types/risk";
-import { detectLineChanges } from "../git";
+import { detectLineChanges } from "../../services/git-service";
 import { getRelativeFilePath } from "../../utils/vs-code";
 import { Repository } from "../../types/repository";
-
 import { RiskRemediationTriggerCodeLensProvider } from "../remediate-risks/remediation-trigger-code-lense";
-import { createDefaultMessage } from "../create-hover-message/default-hover-message";
-import { createSecretsMessage } from "../create-hover-message/secrets-hover-message";
-import { createOSSMessage } from "../create-hover-message/oss-hover-message";
+import { createDefaultMessage } from "./create-hover-message/default-hover-message";
+import { createSecretsMessage } from "./create-hover-message/secrets-hover-message";
+import { createOSSMessage } from "./create-hover-message/oss-hover-message";
 
 export class RiskHighlighter {
   private readonly risksDecoration: vscode.TextEditorDecorationType;

@@ -130,19 +130,25 @@ async function fetchRisksPage(
   paramsSerializer: (params: Record<string, string>) => string,
   skip: number,
 ): Promise<{ risks: Risk[]; totalItemCount: number }> {
-  const response = await axiosInstance.get(
-    riskCategory === "Api" ? `/risks` : `/risks/${riskCategory.toLowerCase()}`,
-    {
-      params: {
-        ...params,
-        ...(riskCategory !== "Api" && {
-          "filters[RiskCategory]": riskCategory,
-        }),
-        skip,
-      },
-      paramsSerializer,
-    },
-  );
+  const baseURL = axiosInstance.defaults.baseURL || "";
+  const endpoint =
+    riskCategory === "Api" ? `/risks` : `/risks/${riskCategory.toLowerCase()}`;
+
+  const requestParams = {
+    ...params,
+    ...(riskCategory !== "Api" && {
+      "filters[RiskCategory]": riskCategory,
+    }),
+    skip,
+  };
+  //@ts-ignore§
+  const serializedParams = paramsSerializer(requestParams);
+  const fullURL = `${baseURL}${endpoint}${serializedParams ? `?${serializedParams}` : ""}`;
+
+  const response = await axiosInstance.get(endpoint, {
+    params: requestParams,
+    paramsSerializer,
+  });
 
   return {
     risks: response.data.items || [],

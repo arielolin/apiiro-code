@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { Risk } from "../../types/risk";
-import { detectLineChanges } from "../git";
+import { detectLineChanges } from "../../services/git-service";
 import { RiskRemediation } from "./remediate-risks";
 import { Repository } from "../../types/repository";
 import { addSuggestionLine } from "./suggestion-helper";

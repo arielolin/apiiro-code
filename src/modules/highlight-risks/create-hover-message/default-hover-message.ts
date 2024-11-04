@@ -1,7 +1,7 @@
-import { Risk } from "../../types/risk";
-import { getSeverityIcon } from "../highlight-risks/utils";
-import { hasRemedy } from "../remediate-risks/remediate-risks";
-import { getEnvironmentData } from "../../api";
+import { Risk } from "../../../types/risk";
+import { getSeverityIcon } from "../utils";
+import { hasRemedy } from "../../remediate-risks/remediate-risks";
+import { getEnvironmentData } from "../../../api";
 
 export function createDefaultMessage(risk: Risk): string {
   const severityIcon = getSeverityIcon(risk.riskLevel);

@@ -1,7 +1,7 @@
-import { SecretsRisk } from "../../types/risk";
-import { getSeverityIcon } from "../highlight-risks/utils";
-import { hasRemedy } from "../remediate-risks/remediate-risks";
-import { getEnvironmentData } from "../../api";
+import { SecretsRisk } from "../../../types/risk";
+import { getSeverityIcon } from "../utils";
+import { hasRemedy } from "../../remediate-risks/remediate-risks";
+import { getEnvironmentData } from "../../../api";
 
 export function createSecretsMessage(risk: SecretsRisk): string {
   const severityIcon = getSeverityIcon(risk.riskLevel);

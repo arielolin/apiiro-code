@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { RiskHighlighter } from "./modules/highlight-risks/risks-highlighter";
 import { remediateRisk } from "./modules/remediate-risks/remediate-risks";
 import { getMonitoredRepositoriesByName } from "./api";
-import { getRemoteUrl, getRepoName } from "./modules/git";
+import { getRemoteUrl, getRepoName } from "./services/git-service";
 import { Repository } from "./types/repository";
 import _ from "lodash";
 
@@ -34,23 +34,23 @@ export async function activate(context: vscode.ExtensionContext) {
         );
         return;
       }
-      const allMonitoredRepositories = await getMonitoredRepositoriesByName(
+      const matchedMonitoredRepositories = await getMonitoredRepositoriesByName(
         repoName,
         remoteUrl,
       );
 
-      if (allMonitoredRepositories.length === 0) {
+      if (matchedMonitoredRepositories.length === 0) {
         vscode.window.showWarningMessage(
           "Apiiro: No repositories found for the provided repository name.",
         );
         return;
       }
 
-      if (allMonitoredRepositories.length === 1) {
-        baseBranch = allMonitoredRepositories[0].branchName;
+      if (matchedMonitoredRepositories.length === 1) {
+        baseBranch = matchedMonitoredRepositories[0].branchName;
       } else {
         const branchData = await vscode.window.showQuickPick(
-          allMonitoredRepositories.map((repo) => ({
+          matchedMonitoredRepositories.map((repo) => ({
             label: repo.branchName,
             detail: repo.name,
           })),
@@ -73,7 +73,7 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      repoData = allMonitoredRepositories.find(
+      repoData = matchedMonitoredRepositories.find(
         (repo) => repo.branchName === baseBranch,
       ) as Repository;
 
@@ -116,7 +116,6 @@ export async function activate(context: vscode.ExtensionContext) {
     "apiiro-code.remediate",
     async (risk) => {
       if (preventHighlights) {
-        vscode.window.showInformationMessage("Risk remediation is in progress");
         return;
       }
       const editor = vscode.window.activeTextEditor;
