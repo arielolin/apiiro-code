@@ -4,8 +4,11 @@ import * as diff from "diff";
 import * as path from "path";
 import NodeCache from "node-cache";
 import { Repository } from "../types/repository";
+import { URL } from "url";
+import { createApiiroRestApiClient } from "../apiiro-rest-api-provider";
 
 const cache = new NodeCache({ stdTTL: 600 }); // 5 minutes cache
+const REPO_API_BASE_URL = `/rest-api/v2`;
 
 interface LineChangeInfo {
   originalLineNumber: number;
@@ -202,4 +205,81 @@ async function runGitCommand(cwd: string, args: string[]): Promise<string> {
       }
     });
   });
+}
+
+export async function getMonitoredRepositoriesByName(
+  repoName: string,
+  remoteUrl: string,
+): Promise<Repository[]> {
+  const apiiroRestApiClient = createApiiroRestApiClient(REPO_API_BASE_URL);
+  if (!apiiroRestApiClient) {
+    return [];
+  }
+
+  try {
+    const params = {
+      "filters[RepositoryName]": repoName,
+    };
+
+    const paramsSerializer = (params: Record<string, string>) => {
+      return Object.entries(params)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join("&");
+    };
+
+    const response = await apiiroRestApiClient.get("/repositories", {
+      params,
+      paramsSerializer,
+    });
+
+    if (
+      response.data &&
+      response.data.items &&
+      response.data.items.length > 0
+    ) {
+      const remoteUrlHostname = extractGitHostnameFromUrl(remoteUrl);
+
+      const filteredRepos = response.data.items.filter((repo: Repository) => {
+        const repoUrlHostname = extractGitHostnameFromUrl(repo.serverUrl);
+        return repo.name === repoName && repoUrlHostname === remoteUrlHostname;
+      });
+
+      if (filteredRepos.length > 0) {
+        vscode.window.showInformationMessage(
+          `Connected to repository "${repoName}" at ${remoteUrl}.`,
+        );
+        return filteredRepos;
+      } else {
+        vscode.window.showWarningMessage(
+          `No repositories found matching name "${repoName}" and URL "${remoteUrl}".`,
+        );
+        return [];
+      }
+    } else {
+      vscode.window.showWarningMessage(`Repository "${repoName}" not found.`);
+      return [];
+    }
+  } catch (error: any) {
+    console.error("API Error:", error.response?.data || error.message);
+    vscode.window.showErrorMessage(
+      `Error retrieving repository: ${error.message}`,
+    );
+    return [];
+  }
+}
+
+function extractGitHostnameFromUrl(url: string): string {
+  try {
+    // Handle SSH URLs
+    if (url.startsWith("git@")) {
+      const parts = url.split("@")[1].split(":");
+      return parts[0];
+    }
+    // Handle HTTPS URLs
+    const parsedUrl = new URL(url);
+    return parsedUrl.hostname;
+  } catch (error) {
+    console.error(`Error parsing URL: ${url}`, error);
+    return "";
+  }
 }

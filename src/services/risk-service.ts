@@ -1,0 +1,139 @@
+import axios from "axios";
+import vscode from "vscode";
+import { Risk } from "../types/risk";
+import NodeCache from "node-cache";
+import { Repository } from "../types/repository";
+import { decodeJwt } from "../utils/string";
+import { URL } from "url";
+import { createApiiroRestApiClient } from "../apiiro-rest-api-provider";
+
+const RISK_API_BASE_URL = `/rest-api/v1`;
+const MIN_CONCURRENT_REQUESTS = 3;
+const MAX_CONCURRENT_REQUESTS = 5;
+const PAGE_SIZE = 100; // Increase page size to reduce number of requests
+
+const cache = new NodeCache({ stdTTL: 600 }); //5 minutes cache
+
+type AxiosInstance = axios.AxiosInstance;
+
+async function fetchRisksPage(
+  axiosInstance: AxiosInstance,
+  riskCategory: string,
+  params: Record<string, any>,
+  paramsSerializer: (params: Record<string, string>) => string,
+  skip: number,
+): Promise<{ risks: Risk[]; totalItemCount: number }> {
+  const baseURL = axiosInstance.defaults.baseURL || "";
+  const endpoint =
+    riskCategory === "Api" ? `/risks` : `/risks/${riskCategory.toLowerCase()}`;
+
+  const requestParams = {
+    ...params,
+    ...(riskCategory !== "Api" && {
+      "filters[RiskCategory]": riskCategory,
+    }),
+    skip,
+  };
+
+  const serializedParams = paramsSerializer(requestParams);
+
+  const response = await axiosInstance.get(endpoint, {
+    params: requestParams,
+    paramsSerializer,
+  });
+
+  return {
+    risks: response.data.items || [],
+    totalItemCount: response.data.paging.totalItemCount,
+  };
+}
+
+async function fetchAllRisks(
+  axiosInstance: AxiosInstance,
+  riskCategory: string,
+  params: Record<string, any>,
+  paramsSerializer: (params: Record<string, string>) => string,
+): Promise<Risk[]> {
+  const initialPage = await fetchRisksPage(
+    axiosInstance,
+    riskCategory,
+    params,
+    paramsSerializer,
+    0,
+  );
+  let allRisks = initialPage.risks;
+  const totalItemCount = initialPage.totalItemCount;
+
+  if (totalItemCount <= PAGE_SIZE) {
+    return allRisks;
+  }
+
+  const remainingPages = Math.ceil((totalItemCount - PAGE_SIZE) / PAGE_SIZE);
+  const concurrentRequests = Math.min(
+    MAX_CONCURRENT_REQUESTS,
+    Math.max(MIN_CONCURRENT_REQUESTS, Math.floor(remainingPages / 2)),
+  );
+
+  for (let i = 1; i < remainingPages; i += concurrentRequests) {
+    const pagePromises = [];
+    for (let j = 0; j < concurrentRequests && i + j < remainingPages; j++) {
+      const skip = (i + j) * PAGE_SIZE;
+      pagePromises.push(
+        fetchRisksPage(
+          axiosInstance,
+          riskCategory,
+          params,
+          paramsSerializer,
+          skip,
+        ),
+      );
+    }
+    const pages = await Promise.all(pagePromises);
+    allRisks = allRisks.concat(pages.flatMap((page) => page.risks));
+  }
+
+  return allRisks;
+}
+
+export async function findRisks(
+  relativeFilePath: string,
+  repoData: Repository,
+): Promise<Risk[]> {
+  const cacheKey = `risks_${relativeFilePath}`;
+  const cachedRisks = cache.get<Risk[]>(cacheKey);
+  if (cachedRisks) {
+    return cachedRisks;
+  }
+
+  const apiiroClient = createApiiroRestApiClient(RISK_API_BASE_URL);
+
+  try {
+    const params = {
+      "filters[CodeReference]": relativeFilePath,
+      "filters[RepositoryID]": repoData.key,
+      pageSize: 100,
+    };
+
+    const paramsSerializer = (params: Record<string, string>) => {
+      return Object.entries(params)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join("&");
+    };
+
+    const [ossRisks, secretsRisks, sastRisks, apiRisks] = await Promise.all([
+      fetchAllRisks(apiiroClient!, "OSS", params, paramsSerializer),
+      fetchAllRisks(apiiroClient!, "Secrets", params, paramsSerializer),
+      fetchAllRisks(apiiroClient!, "SAST", params, paramsSerializer),
+      fetchAllRisks(apiiroClient!, "Api", params, paramsSerializer),
+    ]);
+
+    const allRisks = [...ossRisks, ...secretsRisks, ...sastRisks, ...apiRisks];
+
+    cache.set(cacheKey, allRisks);
+    return allRisks;
+  } catch (error: any) {
+    console.error("API Error:", error.response?.data || error.message);
+    vscode.window.showErrorMessage(`Error retrieving risks: ${error.message}`);
+    return [];
+  }
+}

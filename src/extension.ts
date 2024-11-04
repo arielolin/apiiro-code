@@ -1,8 +1,12 @@
 import * as vscode from "vscode";
 import { RiskHighlighter } from "./modules/highlight-risks/risks-highlighter";
 import { remediateRisk } from "./modules/remediate-risks/remediate-risks";
-import { getMonitoredRepositoriesByName } from "./api";
-import { getRemoteUrl, getRepoName } from "./services/git-service";
+
+import {
+  getMonitoredRepositoriesByName,
+  getRemoteUrl,
+  getRepoName,
+} from "./services/git-service";
 import { Repository } from "./types/repository";
 import _ from "lodash";
 
@@ -12,6 +16,7 @@ let baseBranch: string;
 let preventHighlights = false;
 
 export async function activate(context: vscode.ExtensionContext) {
+  //This is called when your extension is activated, actiong as the main entry point
   const riskHighlighter = new RiskHighlighter(context);
 
   const highlightRisks = async (
