@@ -38,9 +38,18 @@ async function fetchRisksPage(
     paramsSerializer,
   });
 
+  let risks = response.data.items || [];
+  let totalItemCount = response.data.paging.totalItemCount;
+
+  // Post-fetch filtering for API risks
+  if (riskCategory === "Api") {
+    risks = risks.filter((risk: Risk) => risk.riskCategory === "Api");
+    totalItemCount = risks.length;
+  }
+
   return {
-    risks: response.data.items || [],
-    totalItemCount: response.data.paging.totalItemCount,
+    risks,
+    totalItemCount,
   };
 }
 

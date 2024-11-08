@@ -22,7 +22,6 @@ export class RiskRemediationTriggerCodeLensProvider
     for (const [lineNumber, risks] of this.groupedRisks.entries()) {
       const remediableRisk = risks.find((risk) => hasRemedy(risk));
 
-      vscode.window.showErrorMessage(JSON.stringify(risks));
       if (remediableRisk) {
         const range = new vscode.Range(
           new vscode.Position(lineNumber - 1, 0),

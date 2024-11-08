@@ -11,11 +11,11 @@ export function createSecretsMessage(risk: SecretsRisk): string {
 
 **Secret type:**  ${risk.secretType ?? "N/A"}
 
-**Discovered on:** ${new Date(risk.discoveredOn).toLocaleString()}
+**Discovered on:** ${new Date(risk.discoveredOn).toLocaleString() ?? "N/A"}
 
 **Validity:** ${risk.validity}${risk.lastValidatedOn ? `. Last checked as invalid: ${new Date(risk.lastValidatedOn).toLocaleString()}` : ""}
 
-**Exposure:** ${risk.exposure}
+**Exposure:** ${risk.exposure ?? "N/A"}
 
 **Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
  
