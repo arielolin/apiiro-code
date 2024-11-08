@@ -11,6 +11,7 @@ import { findRisksForFile } from "../../services/risk-service";
 import { createOSSMessage } from "./create-hover-message/oss-hover-message";
 import { createSecretsMessage } from "./create-hover-message/secrets-hover-message";
 import { createDefaultMessage } from "./create-hover-message/default-hover-message";
+import { getHighestRiskLevel, getSeverityIcon } from "./utils";
 
 export class RiskHighlighter {
   private readonly decorationTypes: Map<
@@ -119,13 +120,15 @@ export class RiskHighlighter {
   ): Promise<vscode.DecorationOptions> {
     const range = editor.document.lineAt(lineNumber - 1).range;
     const uniqueRiskTypes = [...new Set(risks.map((r) => r.riskCategory))];
+    const highestRiskLevel = getHighestRiskLevel(risks);
+    const severityIcon = getSeverityIcon(highestRiskLevel);
 
     return {
       range,
       hoverMessage: this.createHoverMessage(risks),
       renderOptions: {
         after: {
-          contentText: `🚨 ${uniqueRiskTypes.join(", ")} risk detected`,
+          contentText: `${severityIcon} ${highestRiskLevel} ${uniqueRiskTypes.join(", ")} risk detected`,
         },
       },
     };

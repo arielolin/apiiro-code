@@ -41,7 +41,10 @@ export class DiagnosticsHelper {
 
   private createDiagnosticMessage(risks: Risk[]): string {
     return risks
-      .map((risk) => `🚨 ${risk.riskCategory} Risk Detected: ${risk.ruleName}`)
+      .map(
+        (risk) =>
+          `${risk.riskLevel} ${risk.riskCategory} risk detected: ${risk.ruleName}`,
+      )
       .join("\n");
   }
 

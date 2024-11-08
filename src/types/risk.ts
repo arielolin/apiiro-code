@@ -1,7 +1,9 @@
+export type RiskLevel = "Critical" | "High" | "Medium" | "Low";
+
 export interface BaseRisk {
   id: string;
   type: string;
-  riskLevel: string;
+  riskLevel: RiskLevel;
   riskStatus: string;
   ruleName: string;
   riskCategory: string;
@@ -29,7 +31,7 @@ export interface BaseRisk {
       privacySettings: string;
       profileUrl: string;
       repositoryGroup: string;
-      riskLevel: string;
+      riskLevel: RiskLevel;
       serverUrl: string;
       url: string;
     };
