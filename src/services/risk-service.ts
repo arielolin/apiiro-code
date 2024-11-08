@@ -3,14 +3,12 @@ import vscode from "vscode";
 import { Risk } from "../types/risk";
 import NodeCache from "node-cache";
 import { Repository } from "../types/repository";
-import { decodeJwt } from "../utils/string";
-import { URL } from "url";
 import { createApiiroRestApiClient } from "../apiiro-rest-api-provider";
 
-const RISK_API_BASE_URL = `/rest-api/v1`;
-const MIN_CONCURRENT_REQUESTS = 3;
-const MAX_CONCURRENT_REQUESTS = 5;
-const PAGE_SIZE = 100; // Increase page size to reduce number of requests
+const RISK_API_BASE_URL = `/rest-api/v1` as const;
+const MIN_CONCURRENT_REQUESTS = 3 as const;
+const MAX_CONCURRENT_REQUESTS = 5 as const;
+const PAGE_SIZE = 100 as const; // Increase page size to reduce number of requests
 
 const cache = new NodeCache({ stdTTL: 600 }); //5 minutes cache
 
@@ -34,8 +32,6 @@ async function fetchRisksPage(
     }),
     skip,
   };
-
-  const serializedParams = paramsSerializer(requestParams);
 
   const response = await axiosInstance.get(endpoint, {
     params: requestParams,
@@ -95,7 +91,7 @@ async function fetchAllRisks(
   return allRisks;
 }
 
-export async function findRisks(
+export async function findRisksForFile(
   relativeFilePath: string,
   repoData: Repository,
 ): Promise<Risk[]> {

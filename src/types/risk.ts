@@ -35,6 +35,10 @@ export interface BaseRisk {
     };
     type: string;
   };
+  remediationSuggestion?: {
+    codeReference: any;
+    nearestFixVersion: string;
+  };
   applications: Array<{
     apiiroUrl: string;
     businessImpact: string;
@@ -57,16 +61,12 @@ export interface BaseRisk {
     name: string;
     reason: string;
   }>;
-  actionsTaken: any[]; // You might want to define a more specific type for actionsTaken
+  actionsTaken: unknown;
   findingCategory: string;
   findingName: string | null;
 }
 
 export interface OSSRisk extends BaseRisk {
-  remediationSuggestion: {
-    codeReference: any;
-    nearestFixVersion: string;
-  };
   dependencyName: string;
   dependencyVersion: string;
   vulnerabilities?: Array<{

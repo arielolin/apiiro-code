@@ -1,8 +1,19 @@
 import * as vscode from "vscode";
-
 import { Risk } from "../../types/risk";
-import { OSSRiskRemediation } from "./remediate-oss";
 import { Repository } from "../../types/repository";
+import { DependencyRemediationFactory } from "./remediate-oss-factory";
+
+const supportedFileTypes = [
+  "package.json",
+  "requirements.txt",
+  "pom.xml",
+  /*  "yarn.lock",
+  "Gemfile.lock",
+  "build.sbt",
+  "build.gradle",
+  "build.gradle.kts",
+  "package-lock.json",*/
+] as const;
 
 export interface RiskRemediation {
   remediate(
@@ -12,14 +23,41 @@ export interface RiskRemediation {
   ): Promise<void>;
 }
 
-class RiskRemediationFactory {
+class OSSRiskRemediation implements RiskRemediation {
+  private onRiskRemediation: () => void;
+
+  constructor(onRiskRemediation: () => void) {
+    this.onRiskRemediation = onRiskRemediation;
+  }
+
+  async remediate(
+    editor: vscode.TextEditor,
+    risk: Risk,
+    repoData: Repository | undefined,
+  ): Promise<void> {
+    throw new Error("No specific remediator found for this file type");
+  }
+}
+
+export class RiskRemediationFactory {
   static createRemediation(
     riskCategory: string,
     onRiskRemediation: () => void,
+    filename?: string,
   ): RiskRemediation {
     switch (riskCategory) {
-      case "OSS Security":
+      case "OSS Security": {
+        if (filename) {
+          const dependencyFactory = new DependencyRemediationFactory(
+            onRiskRemediation,
+          );
+          const specificRemediator = dependencyFactory.getRemediator(filename);
+          if (specificRemediator) {
+            return specificRemediator;
+          }
+        }
         return new OSSRiskRemediation(onRiskRemediation);
+      }
       default:
         throw new Error(`Unsupported risk category: ${riskCategory}`);
     }
@@ -36,6 +74,7 @@ export async function remediateRisk(
     const remediation = RiskRemediationFactory.createRemediation(
       risk.riskCategory,
       onRiskRemediation,
+      editor.document.fileName, // Pass the filename to get specific handler
     );
     await remediation.remediate(editor, risk, repoData);
   } catch (error: any) {
@@ -45,8 +84,5 @@ export async function remediateRisk(
 }
 
 export function hasRemedy(risk: Risk): boolean {
-  return (
-    risk.sourceCode.filePath.includes("package.json") &&
-    !!("remediationSuggestion" in risk && risk.remediationSuggestion)
-  );
+  return !!risk.remediationSuggestion;
 }

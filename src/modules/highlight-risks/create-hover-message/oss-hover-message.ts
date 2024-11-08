@@ -1,7 +1,7 @@
 import { OSSRisk } from "../../../types/risk";
 import { hasRemedy } from "../../remediate-risks/remediate-risks";
 import { getSeverityIcon } from "../utils";
-import { getEnvironmentData } from "../../../api";
+import { getEnvironmentData } from "../../../apiiro-rest-api-provider";
 
 export function createOSSMessage(risk: OSSRisk): string {
   const encodedRisk = encodeURIComponent(JSON.stringify(risk));

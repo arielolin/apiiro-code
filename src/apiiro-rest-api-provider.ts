@@ -4,7 +4,7 @@ import { decodeJwt } from "./utils/string";
 
 const API_BASE_URL = `${getEnvironmentData().AppUrl}`;
 
-function getEnvironmentData() {
+export function getEnvironmentData() {
   const token = getApiToken() as string;
   return decodeJwt(token);
 }

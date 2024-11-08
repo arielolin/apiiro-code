@@ -9,9 +9,9 @@ export class RiskRemediationTriggerCodeLensProvider
   private _onDidChangeCodeLenses = new vscode.EventEmitter<void>();
   public readonly onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
 
-  public updateRisks(risks: Map<number, Risk[]>) {
+  public updateRemediationTriggers(risks: Map<number, Risk[]>) {
     this.groupedRisks = risks;
-    this._onDidChangeCodeLenses.fire(); // Force CodeLens refresh
+    this._onDidChangeCodeLenses.fire();
   }
 
   async provideCodeLenses(
@@ -21,6 +21,8 @@ export class RiskRemediationTriggerCodeLensProvider
 
     for (const [lineNumber, risks] of this.groupedRisks.entries()) {
       const remediableRisk = risks.find((risk) => hasRemedy(risk));
+
+      vscode.window.showErrorMessage(JSON.stringify(risks));
       if (remediableRisk) {
         const range = new vscode.Range(
           new vscode.Position(lineNumber - 1, 0),

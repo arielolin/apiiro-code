@@ -16,26 +16,16 @@ let baseBranch: string;
 let preventHighlights = false;
 
 export async function activate(context: vscode.ExtensionContext) {
-  //This is called when your extension is activated, actiong as the main entry point
-  const riskHighlighter = new RiskHighlighter(context);
-
-  const highlightRisks = async (
-    editor: vscode.TextEditor,
-    repo: Repository,
-  ) => {
-    if (!preventHighlights) {
-      await riskHighlighter.highlightRisks(editor, repo);
-    }
-  };
-
   const workspaceFolders = vscode.workspace.workspaceFolders;
+
   if (workspaceFolders && workspaceFolders.length > 0) {
     try {
       const repoName = await getRepoName(workspaceFolders[0].uri.fsPath);
       const remoteUrl = await getRemoteUrl(workspaceFolders[0].uri.fsPath);
+
       if (!remoteUrl) {
-        vscode.window.showErrorMessage(
-          "Apiiro: Can't find remote URL for the current workspace.",
+        vscode.window.showWarningMessage(
+          "Apiiro: Can't find remote URL for the current workspace, extension is deactivated.",
         );
         return;
       }
@@ -104,6 +94,17 @@ export async function activate(context: vscode.ExtensionContext) {
       );
     }
   }
+
+  const riskHighlighter = new RiskHighlighter(context);
+
+  const highlightRisks = async (
+    editor: vscode.TextEditor,
+    repo: Repository,
+  ) => {
+    if (!preventHighlights) {
+      await riskHighlighter.highlightRisks(editor, repo);
+    }
+  };
 
   const highlightDisposable = vscode.commands.registerCommand(
     "apiiro-code.highlightRisks",

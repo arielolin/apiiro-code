@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { findRisks } from "../../api";
+
 import { OSSRisk, Risk, SecretsRisk } from "../../types/risk";
 import { detectLineChanges } from "../../services/git-service";
 import { getRelativeFilePath } from "../../utils/vs-code";
@@ -8,11 +8,12 @@ import { RiskRemediationTriggerCodeLensProvider } from "../remediate-risks/remed
 import { createDefaultMessage } from "./create-hover-message/default-hover-message";
 import { createSecretsMessage } from "./create-hover-message/secrets-hover-message";
 import { createOSSMessage } from "./create-hover-message/oss-hover-message";
+import { findRisksForFile } from "../../services/risk-service";
 
 export class RiskHighlighter {
   private readonly risksDecoration: vscode.TextEditorDecorationType;
   private readonly diagnosticsCollection: vscode.DiagnosticCollection;
-  private readonly codeLensProvider: RiskRemediationTriggerCodeLensProvider;
+  private readonly remediationTriggerProvider: RiskRemediationTriggerCodeLensProvider;
 
   constructor(context: vscode.ExtensionContext) {
     this.risksDecoration = vscode.window.createTextEditorDecorationType({
@@ -22,14 +23,15 @@ export class RiskHighlighter {
     });
 
     this.diagnosticsCollection = vscode.languages.createDiagnosticCollection();
-    this.codeLensProvider = new RiskRemediationTriggerCodeLensProvider();
+    this.remediationTriggerProvider =
+      new RiskRemediationTriggerCodeLensProvider();
 
     context.subscriptions.push(
       this.risksDecoration,
       this.diagnosticsCollection,
       vscode.languages.registerCodeLensProvider(
         { scheme: "file" },
-        this.codeLensProvider,
+        this.remediationTriggerProvider,
       ),
     );
   }
@@ -44,16 +46,10 @@ export class RiskHighlighter {
         return;
       }
 
-      const risks = await findRisks(relativeFilePath, repoData);
-
-      if (risks.length === 0) {
-        vscode.window.showInformationMessage("No risks found");
-        return;
-      }
-
+      const risks = await findRisksForFile(relativeFilePath, repoData);
       const groupedRisks = await this.groupRisksByLine(risks, repoData);
       await this.applyInlineHighlights(editor, groupedRisks);
-      this.codeLensProvider.updateRisks(groupedRisks);
+      this.remediationTriggerProvider.updateRemediationTriggers(groupedRisks);
       this.updateDiagnostics(editor, groupedRisks);
     } catch (error) {
       vscode.window.showErrorMessage(
@@ -65,7 +61,7 @@ export class RiskHighlighter {
   public removeAllHighlights(editor: vscode.TextEditor): void {
     editor.setDecorations(this.risksDecoration, []);
     this.diagnosticsCollection.clear();
-    this.codeLensProvider.updateRisks(new Map());
+    this.remediationTriggerProvider.updateRemediationTriggers(new Map());
   }
 
   private async applyInlineHighlights(
@@ -75,8 +71,6 @@ export class RiskHighlighter {
     const decorations = await this.createDecorations(editor, groupedRisks);
     this.removeAllHighlights(editor);
     editor.setDecorations(this.risksDecoration, decorations);
-
-    this.showRiskSummary(decorations.length);
   }
 
   private async updateDiagnostics(
@@ -218,13 +212,5 @@ export class RiskHighlighter {
 
   private createInlineRiskDescription(riskTypes: string[]): string {
     return `🚨 ${riskTypes.join(", ")} risk detected`;
-  }
-
-  private showRiskSummary(riskCount: number): void {
-    if (riskCount > 0) {
-      vscode.window.showWarningMessage(
-        `Highlighted ${riskCount} potential risk${riskCount > 1 ? "s" : ""} in this file. Please review and address ${riskCount > 1 ? "them" : "it"}.`,
-      );
-    }
   }
 }

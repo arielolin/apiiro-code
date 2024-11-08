@@ -1,7 +1,7 @@
 import { SecretsRisk } from "../../../types/risk";
 import { getSeverityIcon } from "../utils";
 import { hasRemedy } from "../../remediate-risks/remediate-risks";
-import { getEnvironmentData } from "../../../api";
+import { getEnvironmentData } from "../../../apiiro-rest-api-provider";
 
 export function createSecretsMessage(risk: SecretsRisk): string {
   const severityIcon = getSeverityIcon(risk.riskLevel);
@@ -16,7 +16,6 @@ export function createSecretsMessage(risk: SecretsRisk): string {
 **Validity:** ${risk.validity}${risk.lastValidatedOn ? `. Last checked as invalid: ${new Date(risk.lastValidatedOn).toLocaleString()}` : ""}
 
 **Exposure:** ${risk.exposure}
-
 
 **Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
  
