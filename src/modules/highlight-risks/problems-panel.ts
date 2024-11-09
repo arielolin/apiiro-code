@@ -1,6 +1,6 @@
 // src/features/risk-highlighter/diagnostics-helper.ts
 import * as vscode from "vscode";
-import { Risk } from "../../types/risk";
+import { Risk, riskLevels } from "../../types/risk";
 import { DecorationHelper } from "./decoration-helper";
 import { DiagnosticSeverity } from "vscode";
 
@@ -57,11 +57,11 @@ export class DiagnosticsHelper {
     const highestRiskLevel = DecorationHelper.getHighestRiskLevel(risks);
 
     switch (highestRiskLevel) {
-      case "critical":
+      case riskLevels.Critical:
+      case riskLevels.High:
         return vscode.DiagnosticSeverity.Error;
-      case "high":
-      case "medium":
-      case "low":
+      case riskLevels.Medium:
+      case riskLevels.Low:
         return vscode.DiagnosticSeverity.Warning;
       default:
         return vscode.DiagnosticSeverity.Warning;

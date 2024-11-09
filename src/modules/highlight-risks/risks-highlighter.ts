@@ -1,6 +1,6 @@
 // src/features/risk-highlighter/risk-highlighter.ts
 import * as vscode from "vscode";
-import { OSSRisk, Risk, SecretsRisk } from "../../types/risk";
+import { OSSRisk, Risk, riskLevels, SecretsRisk } from "../../types/risk";
 import { detectLineChanges } from "../../services/git-service";
 import { getRelativeFilePath } from "../../utils/vs-code";
 import { Repository } from "../../types/repository";
@@ -22,10 +22,13 @@ export class RiskHighlighter {
 
   constructor(context: vscode.ExtensionContext) {
     this.decorationTypes = new Map([
-      ["critical", DecorationHelper.createDecoration("critical")],
-      ["high", DecorationHelper.createDecoration("high")],
-      ["medium", DecorationHelper.createDecoration("medium")],
-      ["low", DecorationHelper.createDecoration("low")],
+      [
+        riskLevels.Critical,
+        DecorationHelper.createDecoration(riskLevels.Critical),
+      ],
+      [riskLevels.High, DecorationHelper.createDecoration(riskLevels.High)],
+      [riskLevels.Medium, DecorationHelper.createDecoration(riskLevels.Medium)],
+      [riskLevels.Low, DecorationHelper.createDecoration(riskLevels.Low)],
     ]);
 
     this.diagnosticsHelper = new DiagnosticsHelper();
@@ -88,7 +91,6 @@ export class RiskHighlighter {
       try {
         const highestRiskLevel = DecorationHelper.getHighestRiskLevel(risks);
 
-        vscode.window.showInformationMessage(highestRiskLevel);
         const decoration = await this.createDecoration(
           highestRiskLevel,
           editor,

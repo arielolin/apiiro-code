@@ -36,7 +36,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
       if (matchedMonitoredRepositories.length === 0) {
         vscode.window.showWarningMessage(
-          "Apiiro: No repositories found for the provided repository name.",
+          "Apiiro: No monitored repository found for the current workspace, extension is deactivated.",
         );
         return;
       }
@@ -113,7 +113,7 @@ export async function activate(context: vscode.ExtensionContext) {
       if (editor) {
         await highlightRisks(editor, repoData);
       } else {
-        vscode.window.showInformationMessage("No active editor");
+        vscode.window.showWarningMessage("No active editor");
       }
     },
   );

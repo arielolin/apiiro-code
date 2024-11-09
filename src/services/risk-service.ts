@@ -1,6 +1,6 @@
 import axios from "axios";
 import vscode from "vscode";
-import { Risk } from "../types/risk";
+import { Risk, riskLevels } from "../types/risk";
 import NodeCache from "node-cache";
 import { Repository } from "../types/repository";
 import { createApiiroRestApiClient } from "../apiiro-rest-api-provider";
@@ -30,10 +30,10 @@ async function fetchRisksPage(
     ...(riskCategory !== "Api" && {
       "filters[RiskCategory]": [riskCategory],
     }),
-    "filters[RiskLevel][0]": ["Critical"],
-    "filters[RiskLevel][1]": ["High"], 
-    "filters[RiskLevel][2]": ["Medium"],
-    "filters[RiskLevel][3]": ["Low"],
+    "filters[RiskLevel][0]": [riskLevels.Critical],
+    "filters[RiskLevel][1]": [riskLevels.High],
+    "filters[RiskLevel][2]": [riskLevels.Medium],
+    "filters[RiskLevel][3]": [riskLevels.Low],
     skip: [skip.toString()],
   };
 
@@ -45,16 +45,14 @@ async function fetchRisksPage(
   let risks = response.data.items || [];
   let totalItemCount = response.data.paging.totalItemCount;
   if (riskCategory === "Api")
-    vscode.window.showInformationMessage(JSON.stringify(risks));
-
-  if (riskCategory === "Api") {
-    risks = risks.filter(
-      (risk: Risk) =>
-        risk.riskCategory === "Entry Point Changes" ||
-        risk.riskCategory === "Sensitive Data",
-    );
-    totalItemCount = risks.length;
-  }
+    if (riskCategory === "Api") {
+      risks = risks.filter(
+        (risk: Risk) =>
+          risk.riskCategory === "Entry Point Changes" ||
+          risk.riskCategory === "Sensitive Data",
+      );
+      totalItemCount = risks.length;
+    }
 
   return {
     risks,

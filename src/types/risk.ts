@@ -1,5 +1,12 @@
 export type RiskLevel = "Critical" | "High" | "Medium" | "Low";
 
+export const riskLevels = {
+  Critical: "Critical",
+  High: "High",
+  Medium: "Medium",
+  Low: "Low",
+} as const;
+
 export interface BaseRisk {
   id: string;
   type: string;

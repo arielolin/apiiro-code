@@ -1,14 +1,14 @@
-import { Risk, RiskLevel } from "../../types/risk";
+import { Risk, RiskLevel, riskLevels } from "../../types/risk";
 
 export function getSeverityIcon(riskLevel: RiskLevel): string {
   switch (riskLevel) {
-    case "Critical":
+    case riskLevels.Critical:
       return "🚨";
-    case "High":
+    case riskLevels.High:
       return "❗";
-    case "Medium":
+    case riskLevels.Medium:
       return "☢️";
-    case "Low":
+    case riskLevels.Low:
       return "⚠️";
     default:
       return "❓";

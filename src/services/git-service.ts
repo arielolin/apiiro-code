@@ -233,32 +233,26 @@ export async function getMonitoredRepositoriesByName(
     });
 
     if (
-      response.data &&
-      response.data.items &&
-      response.data.items.length > 0
+      !(response.data && response.data.items && response.data.items.length > 0)
     ) {
-      const remoteUrlHostname = extractGitHostnameFromUrl(remoteUrl);
-
-      const filteredRepos = response.data.items.filter((repo: Repository) => {
-        const repoUrlHostname = extractGitHostnameFromUrl(repo.serverUrl);
-        return repo.name === repoName && repoUrlHostname === remoteUrlHostname;
-      });
-
-      if (filteredRepos.length > 0) {
-        vscode.window.showInformationMessage(
-          `Connected to repository "${repoName}" at ${remoteUrl}.`,
-        );
-        return filteredRepos;
-      } else {
-        vscode.window.showWarningMessage(
-          `No repositories found matching name "${repoName}" and URL "${remoteUrl}".`,
-        );
-        return [];
-      }
-    } else {
-      vscode.window.showWarningMessage(`Repository "${repoName}" not found.`);
       return [];
     }
+
+    const remoteUrlHostname = extractGitHostnameFromUrl(remoteUrl);
+
+    const filteredRepos = response.data.items.filter((repo: Repository) => {
+      const repoUrlHostname = extractGitHostnameFromUrl(repo.serverUrl);
+      return repo.name === repoName && repoUrlHostname === remoteUrlHostname;
+    });
+
+    if (filteredRepos.length <= 0) {
+      return [];
+    }
+
+    vscode.window.showInformationMessage(
+      `Connected to repository "${repoName}" at ${remoteUrl}.`,
+    );
+    return filteredRepos;
   } catch (error: any) {
     console.error("API Error:", error.response?.data || error.message);
     vscode.window.showErrorMessage(
