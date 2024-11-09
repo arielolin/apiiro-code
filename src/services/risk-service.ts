@@ -17,8 +17,8 @@ type AxiosInstance = axios.AxiosInstance;
 async function fetchRisksPage(
   axiosInstance: AxiosInstance,
   riskCategory: string,
-  params: Record<string, any>,
-  paramsSerializer: (params: Record<string, string>) => string,
+  params: Record<string, string[]>,
+  paramsSerializer: (params: Record<string, string[]>) => string,
   skip: number,
 ): Promise<{ risks: Risk[]; totalItemCount: number }> {
   const baseURL = axiosInstance.defaults.baseURL || "";
@@ -28,9 +28,13 @@ async function fetchRisksPage(
   const requestParams = {
     ...params,
     ...(riskCategory !== "Api" && {
-      "filters[RiskCategory]": riskCategory,
+      "filters[RiskCategory]": [riskCategory],
     }),
-    skip,
+    "filters[RiskLevel][0]": ["Critical"],
+    "filters[RiskLevel][1]": ["High"], 
+    "filters[RiskLevel][2]": ["Medium"],
+    "filters[RiskLevel][3]": ["Low"],
+    skip: [skip.toString()],
   };
 
   const response = await axiosInstance.get(endpoint, {
@@ -40,10 +44,15 @@ async function fetchRisksPage(
 
   let risks = response.data.items || [];
   let totalItemCount = response.data.paging.totalItemCount;
+  if (riskCategory === "Api")
+    vscode.window.showInformationMessage(JSON.stringify(risks));
 
-  // Post-fetch filtering for API risks
   if (riskCategory === "Api") {
-    risks = risks.filter((risk: Risk) => risk.riskCategory === "Api");
+    risks = risks.filter(
+      (risk: Risk) =>
+        risk.riskCategory === "Entry Point Changes" ||
+        risk.riskCategory === "Sensitive Data",
+    );
     totalItemCount = risks.length;
   }
 
@@ -56,8 +65,8 @@ async function fetchRisksPage(
 async function fetchAllRisks(
   axiosInstance: AxiosInstance,
   riskCategory: string,
-  params: Record<string, any>,
-  paramsSerializer: (params: Record<string, string>) => string,
+  params: Record<string, string[]>,
+  paramsSerializer: (params: Record<string, string[]>) => string,
 ): Promise<Risk[]> {
   const initialPage = await fetchRisksPage(
     axiosInstance,
@@ -114,14 +123,16 @@ export async function findRisksForFile(
 
   try {
     const params = {
-      "filters[CodeReference]": relativeFilePath,
-      "filters[RepositoryID]": repoData.key,
-      pageSize: 100,
+      "filters[CodeReference]": [relativeFilePath],
+      "filters[RepositoryID]": [repoData.key],
+      pageSize: ["100"],
     };
 
-    const paramsSerializer = (params: Record<string, string>) => {
+    const paramsSerializer = (params: Record<string, string[]>) => {
       return Object.entries(params)
-        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .flatMap(([key, values]) =>
+          values.map((value) => `${key}=${encodeURIComponent(value)}`),
+        )
         .join("&");
     };
 

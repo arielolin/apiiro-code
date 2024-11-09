@@ -13,7 +13,7 @@ ${hasRemedy(risk) ? `\n[Remediate](command:apiiro-code.remediate?${encodedRisk})
 
 **Risk Category:** ${risk.riskCategory}
 
-**Discovered on:** ${new Date(risk.discoveredOn).toLocaleString()}
+**Discovered on:** ${new Date(risk.discoveredOn)?.toLocaleString()}
 
 **Description:** ${risk.ruleName}
 

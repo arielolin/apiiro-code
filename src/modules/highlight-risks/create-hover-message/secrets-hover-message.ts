@@ -5,8 +5,9 @@ import { getEnvironmentData } from "../../../apiiro-rest-api-provider";
 
 export function createSecretsMessage(risk: SecretsRisk): string {
   const encodedRisk = encodeURIComponent(JSON.stringify(risk));
+  const severityIcon = getSeverityIcon(risk.riskLevel);
 
-  return `### ${risk.riskLevel} severity risk: ${risk.findingName || risk.ruleName}
+  return `### ${severityIcon}  ${risk.riskLevel} severity risk: ${risk.findingName || risk.ruleName}
 
 **Secret type:**  ${risk.secretType ?? "N/A"}
 

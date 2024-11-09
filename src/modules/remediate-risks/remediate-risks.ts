@@ -6,14 +6,14 @@ import { DependencyRemediationFactory } from "./remediate-oss-factory";
 const supportedFileTypes = [
   "package.json",
   "requirements.txt",
-  "pom.xml",
-  /*  "yarn.lock",
+    /* "pom.xml",
+  "yarn.lock",
   "Gemfile.lock",
   "build.sbt",
   "build.gradle",
   "build.gradle.kts",
   "package-lock.json",*/
-] as const;
+];
 
 export interface RiskRemediation {
   remediate(
@@ -30,7 +30,7 @@ class OSSRiskRemediation implements RiskRemediation {
     this.onRiskRemediation = onRiskRemediation;
   }
 
-  async remediate(
+   async remediate(
     editor: vscode.TextEditor,
     risk: Risk,
     repoData: Repository | undefined,
@@ -84,5 +84,6 @@ export async function remediateRisk(
 }
 
 export function hasRemedy(risk: Risk): boolean {
-  return !!risk.remediationSuggestion;
+  const fileName = vscode.Uri.parse(risk.sourceCode.filePath).path.split('/').pop() || '';
+  return !!risk.remediationSuggestion && supportedFileTypes.includes(fileName.toLowerCase());
 }

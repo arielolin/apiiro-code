@@ -2,6 +2,7 @@
 import * as vscode from "vscode";
 import { Risk } from "../../types/risk";
 import { DecorationHelper } from "./decoration-helper";
+import { DiagnosticSeverity } from "vscode";
 
 export class DiagnosticsHelper {
   private readonly diagnosticsCollection: vscode.DiagnosticCollection;
@@ -35,7 +36,11 @@ export class DiagnosticsHelper {
       const message = this.createDiagnosticMessage(risks);
       const severity = this.getDiagnosticSeverity(risks);
 
-      return new vscode.Diagnostic(range, message, severity);
+      return new vscode.Diagnostic(
+        range,
+        message,
+        severity as DiagnosticSeverity,
+      );
     });
   }
 

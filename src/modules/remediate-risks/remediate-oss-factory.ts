@@ -3,7 +3,6 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { Risk } from "../../types/risk";
 import { RiskRemediation } from "./remediate-risks";
-import { Repository } from "../../types/repository";
 import { addSuggestionLine } from "./suggestion-helper";
 
 interface DependencyRemediation extends RiskRemediation {
@@ -54,7 +53,6 @@ abstract class BaseRemediation implements DependencyRemediation {
   async remediate(
     editor: vscode.TextEditor,
     risk: Risk,
-    repoData: Repository | undefined,
   ): Promise<void> {
     try {
       if (!editor) {
@@ -62,8 +60,8 @@ abstract class BaseRemediation implements DependencyRemediation {
       }
 
       const document = editor.document;
-      const componentName = risk.component;
-      const depKey = risk.component.split(":")[0];
+      const depKey = risk.component;
+      vscode.window.showInformationMessage(risk.component)
       let fixVersion = risk.remediationSuggestion?.nearestFixVersion;
 
       if (!fixVersion) {
@@ -239,17 +237,13 @@ class PomXmlRemediation extends BaseRemediation {
       const [groupId, artifactId] = depKey.split(":");
       if (!groupId || !artifactId) return false;
 
-      if (originalText.includes("<version>")) {
-        const context = await this.findDependencyContext(
-          document,
-          lineNumber,
-          groupId,
-          artifactId,
-        );
-        return context !== null;
-      }
-
-      return false;
+      const context = await this.findDependencyContext(
+        document,
+        lineNumber,
+        groupId,
+        artifactId,
+      );
+      return context !== null;
     } catch {
       return false;
     }

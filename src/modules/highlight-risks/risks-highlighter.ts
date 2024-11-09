@@ -11,7 +11,6 @@ import { findRisksForFile } from "../../services/risk-service";
 import { createOSSMessage } from "./create-hover-message/oss-hover-message";
 import { createSecretsMessage } from "./create-hover-message/secrets-hover-message";
 import { createDefaultMessage } from "./create-hover-message/default-hover-message";
-import { getHighestRiskLevel, getSeverityIcon } from "./utils";
 
 export class RiskHighlighter {
   private readonly decorationTypes: Map<
@@ -49,7 +48,9 @@ export class RiskHighlighter {
   ): Promise<void> {
     try {
       const relativeFilePath = getRelativeFilePath(editor);
-      if (!relativeFilePath) return;
+      if (!relativeFilePath) {
+        return;
+      }
 
       const risks = await findRisksForFile(relativeFilePath, repoData);
       const groupedRisks = await this.validateAndGroupRisks(risks, repoData);
@@ -86,7 +87,10 @@ export class RiskHighlighter {
     for (const [lineNumber, risks] of groupedRisks.entries()) {
       try {
         const highestRiskLevel = DecorationHelper.getHighestRiskLevel(risks);
+
+        vscode.window.showInformationMessage(highestRiskLevel);
         const decoration = await this.createDecoration(
+          highestRiskLevel,
           editor,
           lineNumber,
           risks,
@@ -114,21 +118,20 @@ export class RiskHighlighter {
   }
 
   private async createDecoration(
+    highestRiskLevel: string,
     editor: vscode.TextEditor,
     lineNumber: number,
     risks: Risk[],
   ): Promise<vscode.DecorationOptions> {
     const range = editor.document.lineAt(lineNumber - 1).range;
     const uniqueRiskTypes = [...new Set(risks.map((r) => r.riskCategory))];
-    const highestRiskLevel = getHighestRiskLevel(risks);
-    const severityIcon = getSeverityIcon(highestRiskLevel);
 
     return {
       range,
       hoverMessage: this.createHoverMessage(risks),
       renderOptions: {
         after: {
-          contentText: `${severityIcon} ${highestRiskLevel} ${uniqueRiskTypes.join(", ")} risk detected`,
+          contentText: `${highestRiskLevel} ${uniqueRiskTypes.join(",")}  risk detected`,
         },
       },
     };
