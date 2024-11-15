@@ -1,6 +1,12 @@
 // src/features/risk-highlighter/risk-highlighter.ts
 import * as vscode from "vscode";
-import { OSSRisk, Risk, riskLevels, SecretsRisk } from "../../types/risk";
+import {
+  OSSRisk,
+  Risk,
+  riskLevels,
+  SASTRisk,
+  SecretsRisk,
+} from "../../types/risk";
 import { detectLineChanges } from "../../services/git-service";
 import { getRelativeFilePath } from "../../utils/vs-code";
 import { Repository } from "../../types/repository";
@@ -11,6 +17,8 @@ import { findRisksForFile } from "../../services/risk-service";
 import { createOSSMessage } from "./create-hover-message/oss-hover-message";
 import { createSecretsMessage } from "./create-hover-message/secrets-hover-message";
 import { createDefaultMessage } from "./create-hover-message/default-hover-message";
+import { createSastHoverMessage } from "./create-hover-message/sast-hover-message";
+import { createApiHoverMessage } from "./create-hover-message/api-hover-message";
 
 export class RiskHighlighter {
   private readonly decorationTypes: Map<
@@ -147,6 +155,11 @@ export class RiskHighlighter {
             return createOSSMessage(risk as OSSRisk);
           case "Secrets":
             return createSecretsMessage(risk as SecretsRisk);
+          case "SAST Findings":
+            return createSastHoverMessage(risk as SASTRisk);
+          case "Sensitive Data":
+          case "Entry Point Changes":
+            return createApiHoverMessage(risk);
           default:
             return createDefaultMessage(risk);
         }

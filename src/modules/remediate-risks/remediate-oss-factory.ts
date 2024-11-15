@@ -50,10 +50,7 @@ abstract class BaseRemediation implements DependencyRemediation {
     lineNumber: number,
   ): Promise<string>;
 
-  async remediate(
-    editor: vscode.TextEditor,
-    risk: Risk,
-  ): Promise<void> {
+  async remediate(editor: vscode.TextEditor, risk: Risk): Promise<void> {
     try {
       if (!editor) {
         throw new Error("No active text editor");
@@ -61,7 +58,7 @@ abstract class BaseRemediation implements DependencyRemediation {
 
       const document = editor.document;
       const depKey = risk.component;
-      vscode.window.showInformationMessage(risk.component)
+      vscode.window.showInformationMessage(risk.component);
       let fixVersion = risk.remediationSuggestion?.nearestFixVersion;
 
       if (!fixVersion) {
@@ -132,10 +129,24 @@ class PackageJsonRemediation extends BaseRemediation {
       previousText,
     );
 
-    return (
-      inDependencyBlock &&
-      new RegExp(`"${depKey}"\\s*:\\s*["'].*?["']`).test(trimmedLine)
+    // Handle all valid JSON/NPM patterns:
+    // - Version numbers with ^, ~, *, x
+    // - Git URLs
+    // - File paths
+    // - npm aliases
+    // - Workspace references
+    // - Tarball URLs
+    const isValidDependency =
+      /^\s*["'][^"']+["']\s*:\s*["'](?:[\^~*\d\sx\.><= -]+|(?:git(?:\+ssh)?|http[s]?):\/\/[^\s"']+|file:[^\s"']+|npm:[^\s"']+|workspace:[^\s"']+|[^\s"']+\.tgz)["']\s*,?\s*$/.test(
+        trimmedLine,
+      );
+
+    const result = inDependencyBlock && isValidDependency;
+    void vscode.window.showInformationMessage(
+      `Block: ${inDependencyBlock}, Dep: ${isValidDependency} | ${trimmedLine}`,
     );
+
+    return result;
   }
 
   async createUpdatedLineText(
@@ -143,8 +154,36 @@ class PackageJsonRemediation extends BaseRemediation {
     depKey: string,
     fixVersion: string,
   ): Promise<string> {
-    const regex = new RegExp(`("${depKey}"\\s*:\\s*)["'].*?["']`);
-    return originalText.replace(regex, `$1"${fixVersion}"`);
+    // Match the entire dependency line pattern including optional comma and whitespace
+    const lineMatch = originalText.match(
+      /^(\s*"[^"]+"\s*:\s*)(["'])([^"']+)\2(,?\s*)$/,
+    );
+    if (!lineMatch) {
+      return originalText;
+    }
+
+    const [, prefix, quote, currentVersion, suffix] = lineMatch;
+
+    // Don't modify special version formats
+    if (
+      currentVersion.includes("://") ||
+      currentVersion.startsWith("file:") ||
+      currentVersion.startsWith("npm:") ||
+      currentVersion.startsWith("workspace:") ||
+      currentVersion.endsWith(".tgz")
+    ) {
+      return originalText;
+    }
+
+    // Extract version prefix (^, ~, etc)
+    const versionPrefix =
+      currentVersion.match(/^(\^|~|>=|<=|>|<|\*)?/)?.[1] || "";
+
+    void vscode.window.showInformationMessage(
+      `Original: ${originalText}\nCurrent: ${currentVersion}\nPrefix: ${versionPrefix}\nFix: ${fixVersion}\nResult: ${prefix}${quote}${versionPrefix}${fixVersion}${quote}${suffix}`,
+    );
+
+    return `${prefix}${quote}${versionPrefix}${fixVersion}${quote}${suffix}`;
   }
 }
 

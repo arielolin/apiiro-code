@@ -1,5 +1,3 @@
-export type RiskLevel = "Critical" | "High" | "Medium" | "Low";
-
 export const riskLevels = {
   Critical: "Critical",
   High: "High",
@@ -7,20 +5,35 @@ export const riskLevels = {
   Low: "Low",
 } as const;
 
+export type RiskLevel = (typeof riskLevels)[keyof typeof riskLevels];
+
+export const riskCategories = {
+  Secrets: "Secrets",
+  "OSS Security": "OSS Security",
+  "SAST Findings": "SAST Findings",
+  "Entry Point Changes": "Entry Point Changes",
+  "Sensitive Data": "Sensitive Data",
+} as const;
+
+export type RiskCategory = (typeof riskCategories)[keyof typeof riskCategories];
+
 export interface BaseRisk {
   id: string;
   type: string;
   riskLevel: RiskLevel;
   riskStatus: string;
   ruleName: string;
-  riskCategory: string;
+  riskCategory: RiskCategory;
   component: string;
   discoveredOn: string;
-  insights: any[]; // You might want to define a more specific type for insights
+  insights: Array<{
+    name: string;
+    reason: string;
+  }>;
   apiiroRiskUrl: string;
   source: Array<{
     name: string;
-    url: string;
+    url: string | null;
   }>;
   entity: {
     details: {
@@ -69,7 +82,7 @@ export interface BaseRisk {
     email: string;
     name: string;
     reason: string;
-  }>;
+  }> | null;
   actionsTaken: unknown;
   findingCategory: string;
   findingName: string | null;
@@ -89,6 +102,7 @@ export interface OSSRisk extends BaseRisk {
     id: string;
     identifiers: string[];
   }>;
+  riskCategory: (typeof riskCategories)["OSS Security"];
 }
 
 export interface SecretsRisk extends BaseRisk {
@@ -98,6 +112,79 @@ export interface SecretsRisk extends BaseRisk {
   validity: string;
   lastValidatedOn?: string;
   previewLines: string[];
+  riskCategory: (typeof riskCategories)["Secrets"];
 }
 
-export type Risk = OSSRisk | SecretsRisk;
+export interface SASTRisk extends BaseRisk {
+  issueTitle: string;
+  reportUrl: string | null;
+  description: string;
+  remediationInfo: string;
+  type: string;
+  cweIdentifiers: string[];
+  reportedSecurityFrameworkReferences: any[];
+  sources: string[];
+  complianceFrameworkReferences: Array<{
+    securityComplianceFramework: string;
+    identifier: string;
+    description: string;
+    url: string;
+  }>;
+  introducedOn: string;
+  findingLink: string[];
+  findingType: string;
+  externalSeverity: string;
+  relevantApis: any[];
+  riskCategory: (typeof riskCategories)["SAST Findings"];
+}
+
+export interface APIRisk extends BaseRisk {
+  riskCategory:
+    | (typeof riskCategories)["Entry Point Changes"]
+    | (typeof riskCategories)["Sensitive Data"];
+  httpMethod?: string;
+  endpoint?: string;
+  apiType?: string;
+  authentication?: {
+    type: string;
+    details: string;
+  };
+  authorization?: {
+    type: string;
+    details: string;
+  };
+  sensitivityPrediction?: {
+    score: number;
+    confidence: string;
+    reasons: string[];
+  };
+  apiDetails?: {
+    parameters: Array<{
+      name: string;
+      type: string;
+      required: boolean;
+      description?: string;
+    }>;
+    responseFormat: string;
+    documentation?: string;
+  };
+}
+
+export type Risk = OSSRisk | SecretsRisk | SASTRisk | APIRisk;
+
+// Type guard functions
+export function isSASTRisk(risk: Risk): risk is SASTRisk {
+  return risk.riskCategory === riskCategories["SAST Findings"];
+}
+
+export function isOSSRisk(risk: Risk): risk is OSSRisk {
+  return risk.riskCategory === riskCategories["OSS Security"];
+}
+
+export function isSecretsRisk(risk: Risk): risk is SecretsRisk {
+  return risk.riskCategory === riskCategories["Secrets"];
+}
+
+export function isAPIRisk(risk: Risk): risk is APIRisk {
+  return risk.riskCategory === riskCategories["Entry Point Changes"];
+}

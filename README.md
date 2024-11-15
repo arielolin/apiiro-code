@@ -2,18 +2,26 @@
 
 ## Overview
 
-Apiiro Code is a Visual Studio Code extension that helps developers identify and manage risks directly in their IDE. The extension integrates with Apiiro's REST API to provide risk data visualization and remediation options per "risky" line of code.
+Apiiro Code is a Visual Studio Code extension that helps developers identify and manage risks directly in their IDE. The extension integrates with Apiiro's REST API to provide risk data visualization and remediation options for risky code.
 
 ## Design Constraints
 
 - Must be compatible with popular IDEs (currently supporting VS Code)
 - Requires valid Apiiro API token for authentication
-- Must handle offline scenarios gracefully
 - Should minimize performance impact on the IDE
 - Must follow IDE extension development guidelines
 - Must maintain compatibility with Apiiro's API and services
 - Must only use existing data pipelines - no direct code/data transmission
 - Must adhere to enterprise-grade data privacy standards, including GDPR compliance, data sovereignty requirements, and implement robust security controls for sensitive information handling
+- Must rely solely on Apiiro's REST API for risk detection in codebase
+- No local code parsing or scanning is performed within the IDE
+- All risk detection and analysis happens on monitored branches through Apiiro's platform
+- Extension acts as a visualization layer for remotely detected risks
+- Risk data is retrieved and displayed based on:
+  - Repository identification
+  - Branch context
+  - File paths
+  - Line numbers
 
 ## Functional View
 

@@ -8,6 +8,8 @@ export function createSecretsMessage(risk: SecretsRisk): string {
   const severityIcon = getSeverityIcon(risk.riskLevel);
 
   return `### ${severityIcon}  ${risk.riskLevel} severity risk: ${risk.findingName || risk.ruleName}
+  
+**Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
 
 **Secret type:**  ${risk.secretType ?? "N/A"}
 
@@ -17,8 +19,6 @@ export function createSecretsMessage(risk: SecretsRisk): string {
 
 **Exposure:** ${risk.exposure ?? "N/A"}
 
-**Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
- 
 ${hasRemedy(risk) ? `\n[Remediate](command:apiiro-code.remediate?${encodedRisk})` : ""}
 `;
 }

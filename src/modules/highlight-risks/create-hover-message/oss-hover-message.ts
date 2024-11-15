@@ -114,12 +114,12 @@ class OSSMessageBuilder {
 export function createOSSMessage(risk: OSSRisk): string {
   return new OSSMessageBuilder(risk)
     .addHeader()
+    .addApiiroLink()
     .addRemediateLink()
     .addDependencyInfo()
     .addDiscoveryDate()
     .addVulnerabilities()
     .addRemediationSuggestions()
-    .addApiiroLink()
     .addRemediateLink()
     .build();
 }
