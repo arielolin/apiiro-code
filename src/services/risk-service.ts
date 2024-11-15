@@ -30,6 +30,7 @@ async function fetchRisksPage(
     ...(riskCategory !== "Api" && {
       "filters[RiskCategory]": [riskCategory],
     }),
+    //Avoing "Accepted" and "Autoignored"
     "filters[RiskLevel][0]": [riskLevels.Critical],
     "filters[RiskLevel][1]": [riskLevels.High],
     "filters[RiskLevel][2]": [riskLevels.Medium],

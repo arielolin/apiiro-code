@@ -58,7 +58,7 @@ abstract class BaseRemediation implements DependencyRemediation {
 
       const document = editor.document;
       const depKey = risk.component;
-      vscode.window.showInformationMessage(risk.component);
+
       let fixVersion = risk.remediationSuggestion?.nearestFixVersion;
 
       if (!fixVersion) {
@@ -141,12 +141,7 @@ class PackageJsonRemediation extends BaseRemediation {
         trimmedLine,
       );
 
-    const result = inDependencyBlock && isValidDependency;
-    void vscode.window.showInformationMessage(
-      `Block: ${inDependencyBlock}, Dep: ${isValidDependency} | ${trimmedLine}`,
-    );
-
-    return result;
+    return inDependencyBlock && isValidDependency;
   }
 
   async createUpdatedLineText(
@@ -178,10 +173,6 @@ class PackageJsonRemediation extends BaseRemediation {
     // Extract version prefix (^, ~, etc)
     const versionPrefix =
       currentVersion.match(/^(\^|~|>=|<=|>|<|\*)?/)?.[1] || "";
-
-    void vscode.window.showInformationMessage(
-      `Original: ${originalText}\nCurrent: ${currentVersion}\nPrefix: ${versionPrefix}\nFix: ${fixVersion}\nResult: ${prefix}${quote}${versionPrefix}${fixVersion}${quote}${suffix}`,
-    );
 
     return `${prefix}${quote}${versionPrefix}${fixVersion}${quote}${suffix}`;
   }
