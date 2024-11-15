@@ -24,7 +24,27 @@ export interface APIRiskDetails {
   sensitivityReasons?: string[];
 }
 
-export function parseAPIRiskDetails(risk: APIRisk): APIRiskDetails {
+export function parseAPIRiskDetails(risk: APIRisk): {
+  authorization: string | undefined;
+  path: string;
+  sensitivityScore: number | undefined;
+  method: string;
+  module: string;
+  documentation: string | undefined;
+  businessImpact: string;
+  apiDeclaration: string | undefined;
+  responseFormat: string | undefined;
+  parameters:
+    | Array<{
+        name: string;
+        type: string;
+        required: boolean;
+        description?: string;
+      }>
+    | undefined;
+  sensitivityReasons: string[] | undefined;
+  authentication: { type: string; details: string } | undefined;
+} {
   // Extract method and path from component
   const [method, ...pathParts] = risk.component.split(" ");
   const path = pathParts.join(" ");
@@ -33,6 +53,7 @@ export function parseAPIRiskDetails(risk: APIRisk): APIRiskDetails {
     method,
     path,
     module: risk.entity.details.name,
+    businessImpact: risk.entity.details.businessImpact,
     authorization: risk.authorization?.details,
     apiDeclaration: risk.apiType,
     responseFormat: risk.apiDetails?.responseFormat,
@@ -52,6 +73,7 @@ export function createApiHoverMessage(risk: APIRisk): string {
   
 **Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
 
+**Module:** ${details.module} (${details.businessImpact} business impact) 
 
 **HTTP Method:** ${details.method}
 
