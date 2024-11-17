@@ -135,14 +135,19 @@ export async function findRisksForFile(
         .join("&");
     };
 
-    const [ossRisks, secretsRisks, sastRisks, apiRisks] = await Promise.all([
-      fetchAllRisks(apiiroClient!, "OSS", params, paramsSerializer),
-      fetchAllRisks(apiiroClient!, "Secrets", params, paramsSerializer),
-      fetchAllRisks(apiiroClient!, "SAST", params, paramsSerializer),
-      fetchAllRisks(apiiroClient!, "Api", params, paramsSerializer),
-    ]);
+    const [ossRisks, secretsRisks /*, sastRisks*/, apiRisks] =
+      await Promise.all([
+        fetchAllRisks(apiiroClient!, "OSS", params, paramsSerializer),
+        fetchAllRisks(apiiroClient!, "Secrets", params, paramsSerializer),
+        /*     fetchAllRisks(apiiroClient!, "SAST", params, paramsSerializer),*/
+        fetchAllRisks(apiiroClient!, "Api", params, paramsSerializer),
+      ]);
 
-    const allRisks = [...ossRisks, ...secretsRisks, ...sastRisks, ...apiRisks];
+    const allRisks = [
+      ...ossRisks,
+      ...secretsRisks,
+      /* ...sastRisks,*/ ...apiRisks,
+    ];
 
     cache.set(cacheKey, allRisks);
     return allRisks;

@@ -203,7 +203,9 @@ export class RiskHighlighter {
         groupedRisks.get(lineNumber)!.push(risk);
       });
     } catch (error) {
-      vscode.window.showErrorMessage(`Error detecting line changes: ${error}`);
+      vscode.window.showErrorMessage(
+        `Risks were not highlighted due to an error `,
+      );
       return new Map();
     }
 

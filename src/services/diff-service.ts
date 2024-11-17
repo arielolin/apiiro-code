@@ -94,14 +94,6 @@ export async function detectLineChanges(
     // Get the content of the current file from the active editor
     const currentContent = document.getText();
 
-    // Check for empty lines
-    for (const lineNumber of lineNumbers) {
-      const lineContent = document.lineAt(lineNumber - 1).text.trim();
-      if (!lineContent) {
-        errors.push(`File was not highlighted due to and error.`);
-      }
-    }
-
     if (errors.length > 0) {
       return [
         {
@@ -184,7 +176,7 @@ export async function detectLineChanges(
 
     return results;
   } catch (error) {
-    errors.push(`Error detecting line changes: ${error}`);
+    errors.push(`${error}`);
     return [
       {
         errors,

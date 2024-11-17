@@ -4,6 +4,8 @@ import * as path from "path";
 import { Risk } from "../../types/risk";
 import { RiskRemediation } from "./remediate-risks";
 import { addSuggestionLine } from "./suggestion-helper";
+import { Repository } from "../../types/repository";
+import { detectLineChanges } from "../../services/diff-service";
 
 interface DependencyRemediation extends RiskRemediation {
   canHandle(filename: string): boolean;
@@ -50,7 +52,11 @@ abstract class BaseRemediation implements DependencyRemediation {
     lineNumber: number,
   ): Promise<string>;
 
-  async remediate(editor: vscode.TextEditor, risk: Risk): Promise<void> {
+  async remediate(
+    editor: vscode.TextEditor,
+    risk: Risk,
+    repoData: Repository,
+  ): Promise<void> {
     try {
       if (!editor) {
         throw new Error("No active text editor");
@@ -62,25 +68,31 @@ abstract class BaseRemediation implements DependencyRemediation {
       let fixVersion = risk.remediationSuggestion?.nearestFixVersion;
 
       if (!fixVersion) {
-        vscode.window.showInformationMessage(
+        vscode.window.showErrorMessage(
           "No fix version found for the specified dependency",
         );
         return;
       }
+      const lineChangesData = await detectLineChanges(
+        [risk.sourceCode.lineNumber],
+        repoData,
+      );
+      const lineNumber = lineChangesData[0].hasMoved
+        ? lineChangesData[0].newLineNum
+        : risk.sourceCode.lineNumber;
 
-      const lineNumber = risk.sourceCode.lineNumber;
-      const line = document.lineAt(lineNumber - 1);
+      const line = document.lineAt(lineNumber! - 1);
       const originalText = line.text;
 
       const isValid = await this.validateDependency(
         originalText,
         depKey,
         document,
-        lineNumber - 1,
+        lineNumber! - 1,
       );
 
       if (!isValid) {
-        vscode.window.showInformationMessage(
+        vscode.window.showErrorMessage(
           `${depKey} was not found in the specified location or is in an invalid format`,
         );
         return;
@@ -91,12 +103,12 @@ abstract class BaseRemediation implements DependencyRemediation {
         depKey,
         fixVersion,
         document,
-        lineNumber - 1,
+        lineNumber! - 1,
       );
 
       await addSuggestionLine(
         editor,
-        lineNumber,
+        lineNumber!,
         originalText,
         updatedLineText,
         this.onRiskRemediation,
