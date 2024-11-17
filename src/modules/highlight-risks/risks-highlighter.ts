@@ -64,11 +64,14 @@ export class RiskHighlighter {
       }
 
       const risks = await findRisksForFile(relativeFilePath, repoData);
-      const groupedRisks = await this.validateAndGroupRisks(risks, repoData);
+      const riskyLines = await this.validateAndGroupRisksByLine(
+        risks,
+        repoData,
+      );
 
-      await this.applyInlineHighlights(editor, groupedRisks);
-      this.remediationTriggerProvider.updateRemediationTriggers(groupedRisks);
-      this.diagnosticsHelper.updateDiagnostics(editor, groupedRisks);
+      await this.applyInlineHighlights(editor, riskyLines);
+      this.remediationTriggerProvider.updateRemediationTriggers(riskyLines);
+      this.diagnosticsHelper.updateDiagnostics(editor, riskyLines);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -172,7 +175,7 @@ export class RiskHighlighter {
     return markdownMessage;
   }
 
-  private async validateAndGroupRisks(
+  private async validateAndGroupRisksByLine(
     risks: Risk[],
     repoData: Repository,
   ): Promise<Map<number, Risk[]>> {
