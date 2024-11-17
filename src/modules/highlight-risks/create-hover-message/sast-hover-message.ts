@@ -7,7 +7,7 @@ import {
 } from "../../../types/risk";
 import { getSeverityIcon } from "../utils";
 import { hasRemedy } from "../../remediate-risks/remediate-risks";
-import { getEnvironmentData } from "../../../apiiro-rest-api-provider";
+import { getEnvironmentData } from "../../../services/apiiro-rest-api-provider";
 import vscode from "vscode";
 
 function formatComplianceLinks(risk: SASTRisk): string {

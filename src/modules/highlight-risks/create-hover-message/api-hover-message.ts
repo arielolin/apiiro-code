@@ -1,6 +1,6 @@
 import { APIRisk } from "../../../types/risk";
 import { getSeverityIcon } from "../utils";
-import { getEnvironmentData } from "../../../apiiro-rest-api-provider";
+import { getEnvironmentData } from "../../../services/apiiro-rest-api-provider";
 
 export interface APIRiskDetails {
   method: string;

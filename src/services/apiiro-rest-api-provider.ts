@@ -1,6 +1,6 @@
 import axios from "axios";
 import vscode from "vscode";
-import { decodeJwt } from "./utils/string";
+import { decodeJwt } from "../utils/string";
 
 const API_BASE_URL = `${getEnvironmentData().AppUrl}`;
 
@@ -9,12 +9,12 @@ export function getEnvironmentData() {
   return decodeJwt(token);
 }
 
-function getApiToken(): string | null {
+export function getApiToken(): string | null {
   const config = vscode.workspace.getConfiguration("apiiroCode");
   const token = config.get("token");
   if (!token) {
     vscode.window.showErrorMessage(
-      "Please define the Apiiro API token in the settings.",
+      "Apiiro: no access token detected, please add token in the extension settings and reload.",
     );
     return null;
   }

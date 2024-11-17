@@ -1,7 +1,7 @@
 import { RiskLevel, SecretsRisk } from "../../../types/risk";
 import { getSeverityIcon } from "../utils";
 import { hasRemedy } from "../../remediate-risks/remediate-risks";
-import { getEnvironmentData } from "../../../apiiro-rest-api-provider";
+import { getEnvironmentData } from "../../../services/apiiro-rest-api-provider";
 
 export function createSecretsMessage(risk: SecretsRisk): string {
   const encodedRisk = encodeURIComponent(JSON.stringify(risk));

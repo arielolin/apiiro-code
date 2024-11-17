@@ -1,99 +1,34 @@
 import * as vscode from "vscode";
 import { RiskHighlighter } from "./modules/highlight-risks/risks-highlighter";
 import { remediateRisk } from "./modules/remediate-risks/remediate-risks";
-
-import {
-  getMonitoredRepositoriesByName,
-  getRemoteUrl,
-  getRepoName,
-} from "./services/git-service";
 import { Repository } from "./types/repository";
 import _ from "lodash";
+import { AuthService } from "./services/auth-service";
+import { WorkspaceService } from "./services/workspace-service";
 
 let filePanel: vscode.WebviewPanel | undefined;
 let repoData: Repository;
-let baseBranch: string;
 let preventHighlights = false;
 
 export async function activate(context: vscode.ExtensionContext) {
-  const workspaceFolders = vscode.workspace.workspaceFolders;
+  const authService = AuthService.getInstance();
+  const workspaceService = new WorkspaceService();
 
-  if (workspaceFolders && workspaceFolders.length > 0) {
-    try {
-      const repoName = await getRepoName(workspaceFolders[0].uri.fsPath);
-      const remoteUrl = await getRemoteUrl(workspaceFolders[0].uri.fsPath);
-
-      if (!remoteUrl) {
-        vscode.window.showWarningMessage(
-          "Apiiro: Can't find remote URL for the current workspace, extension is deactivated.",
-        );
-        return;
-      }
-      const matchedMonitoredRepositories = await getMonitoredRepositoriesByName(
-        repoName,
-        remoteUrl,
-      );
-
-      if (matchedMonitoredRepositories.length === 0) {
-        vscode.window.showWarningMessage(
-          "Apiiro: No monitored repository found for the current workspace, extension is deactivated.",
-        );
-        return;
-      }
-
-      if (matchedMonitoredRepositories.length === 1) {
-        baseBranch = matchedMonitoredRepositories[0].branchName;
-      } else {
-        const branchData = await vscode.window.showQuickPick(
-          matchedMonitoredRepositories.map((repo) => ({
-            label: repo.branchName,
-            detail: repo.name,
-          })),
-          {
-            placeHolder: "Select Base Branch",
-            matchOnDetail: true,
-          },
-        );
-
-        if (!branchData) {
-          vscode.window.showWarningMessage("Apiiro: No base branch selected.");
-          return;
-        }
-
-        baseBranch = branchData.label;
-      }
-
-      if (!baseBranch) {
-        vscode.window.showWarningMessage("Apiiro: No base branch provided.");
-        return;
-      }
-
-      repoData = matchedMonitoredRepositories.find(
-        (repo) => repo.branchName === baseBranch,
-      ) as Repository;
-
-      if (!repoData) {
-        vscode.window.showWarningMessage(
-          `Apiiro: Failed to retrieve data for repository: ${repoName}`,
-        );
-        return;
-      }
-
-      repoData.branchName = baseBranch;
-
-      if (!repoData) {
-        vscode.window.showWarningMessage(
-          `Failed to retrieve data for repository: ${repoName}`,
-        );
-      }
-    } catch (error) {
-      console.error("Error getting repository name:", error);
-
-      vscode.window.showWarningMessage(
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+  const isAuthenticated = await authService.verifyAuthentication();
+  if (!isAuthenticated) {
+    return;
   }
+
+  const isInitialized = await workspaceService.initialize();
+  if (!isInitialized) {
+    return;
+  }
+  const workspaceInfo = workspaceService.getWorkspaceInfo();
+  if (!workspaceInfo) {
+    return;
+  }
+
+  repoData = workspaceInfo.repoData;
 
   const riskHighlighter = new RiskHighlighter(context);
 

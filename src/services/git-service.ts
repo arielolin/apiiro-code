@@ -1,21 +1,12 @@
 import * as vscode from "vscode";
 import { spawn } from "child_process";
-import * as diff from "diff";
 import * as path from "path";
 import NodeCache from "node-cache";
 import { Repository } from "../types/repository";
 import { URL } from "url";
-import { createApiiroRestApiClient } from "../apiiro-rest-api-provider";
+import { createApiiroRestApiClient } from "./apiiro-rest-api-provider";
 
-const cache = new NodeCache({ stdTTL: 600 }); // 5 minutes cache
 const REPO_API_BASE_URL = `/rest-api/v2`;
-
-interface LineChangeInfo {
-  originalLineNumber: number;
-  hasChanged: boolean;
-  hasMoved: boolean;
-  newLineNum: number | null;
-}
 
 export async function getRepoName(workspacePath: string): Promise<string> {
   try {
@@ -50,140 +41,10 @@ export async function getRemoteUrl(workspacePath: string): Promise<string> {
   }
 }
 
-export async function detectLineChanges(
-  lineNumbers: number[],
-  repoData: Repository,
-): Promise<LineChangeInfo[]> {
-  const baseBranch = repoData.branchName;
-  if (!baseBranch) {
-    const error = new Error("Apiiro: Repository data is missing or incomplete");
-
-    vscode.window.showErrorMessage(error.message);
-    return [];
-  }
-
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) {
-    const error = new Error("Apiiro: No active text editor");
-    vscode.window.showErrorMessage(error.message);
-    return [];
-  }
-
-  const document = editor.document;
-  const absoluteFilePath = document.uri.fsPath;
-  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-  if (!workspaceFolder) {
-    const error = new Error("Apiiro: File is not part of a workspace");
-    vscode.window.showErrorMessage(error.message);
-    return [];
-  }
-
-  try {
-    const workspacePath = workspaceFolder.uri.fsPath;
-    const relativeFilePath = path.relative(workspacePath, absoluteFilePath);
-
-    // Fetch the latest changes
-    const fetchOrigin = cache.get("fetchOrigin");
-
-    if (!fetchOrigin) {
-      await runGitCommand(workspacePath, ["fetch", "origin"]);
-      cache.set("fetchOrigin", true);
-    }
-
-    // Get the content of the file in the base branch
-    let baseBranchContent: string;
-    try {
-      baseBranchContent = await runGitCommand(workspacePath, [
-        "show",
-        `origin/${baseBranch}:${relativeFilePath}`,
-      ]);
-    } catch (error) {
-      vscode.window.showErrorMessage(
-        `Error fetching base branch content: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      baseBranchContent = "";
-    }
-
-    // Get the content of the current file from the active editor
-    const currentContent = document.getText();
-
-    // Calculate the diff
-    const diffResult = diff.structuredPatch(
-      "base",
-      "current",
-      baseBranchContent,
-      currentContent,
-      "",
-      "",
-    );
-
-    let results: LineChangeInfo[] = lineNumbers.map((lineNumber) => ({
-      originalLineNumber: lineNumber,
-      hasChanged: baseBranchContent === "", // If base content is empty, all lines are new
-      hasMoved: false,
-      newLineNum: lineNumber,
-    }));
-
-    if (baseBranchContent !== "") {
-      let lineMapping = new Map<number, number>();
-      let currentOldLine = 1;
-      let currentNewLine = 1;
-
-      for (const hunk of diffResult.hunks) {
-        // Map unchanged lines before the hunk
-        while (currentOldLine < hunk.oldStart) {
-          lineMapping.set(currentOldLine, currentNewLine);
-          currentOldLine++;
-          currentNewLine++;
-        }
-
-        for (const line of hunk.lines) {
-          if (line.startsWith("-")) {
-            // Removed line
-            currentOldLine++;
-          } else if (line.startsWith("+")) {
-            // Added line
-            currentNewLine++;
-          } else {
-            // Unchanged line
-            lineMapping.set(currentOldLine, currentNewLine);
-            currentOldLine++;
-            currentNewLine++;
-          }
-        }
-      }
-
-      // Map any remaining unchanged lines
-      while (currentOldLine <= baseBranchContent.split("\n").length) {
-        lineMapping.set(currentOldLine, currentNewLine);
-        currentOldLine++;
-        currentNewLine++;
-      }
-
-      // Update results based on the mapping
-      results.forEach((result) => {
-        const newLineNum = lineMapping.get(result.originalLineNumber);
-        if (newLineNum === undefined) {
-          result.hasChanged = true;
-          result.hasMoved = false;
-          result.newLineNum = null;
-        } else {
-          result.newLineNum = newLineNum;
-          result.hasMoved = newLineNum !== result.originalLineNumber;
-        }
-      });
-    }
-
-    return results;
-  } catch (error) {
-    const errorMessage = `Apiiro: Error detecting line changes: ${error}`;
-
-    vscode.window.showErrorMessage(errorMessage);
-    throw error;
-  }
-}
-
-async function runGitCommand(cwd: string, args: string[]): Promise<string> {
+export async function runGitCommand(
+  cwd: string,
+  args: string[],
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const process = spawn("git", args, { cwd });
     let stdout = "";
@@ -275,5 +136,19 @@ function extractGitHostnameFromUrl(url: string): string {
   } catch (error) {
     console.error(`Error parsing URL: ${url}`, error);
     return "";
+  }
+}
+
+export async function getGitRoot(workspacePath: string): Promise<string> {
+  try {
+    const gitRoot = await runGitCommand(workspacePath, [
+      "rev-parse",
+      "--show-toplevel",
+    ]);
+    return gitRoot.replace(/[\\/]/g, path.sep);
+  } catch (error) {
+    throw new Error(
+      `Failed to determine Git root directory: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }

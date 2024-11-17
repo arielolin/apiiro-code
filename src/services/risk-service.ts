@@ -3,7 +3,7 @@ import vscode from "vscode";
 import { Risk, riskLevels } from "../types/risk";
 import NodeCache from "node-cache";
 import { Repository } from "../types/repository";
-import { createApiiroRestApiClient } from "../apiiro-rest-api-provider";
+import { createApiiroRestApiClient } from "./apiiro-rest-api-provider";
 
 const RISK_API_BASE_URL = `/rest-api/v1` as const;
 const MIN_CONCURRENT_REQUESTS = 3 as const;

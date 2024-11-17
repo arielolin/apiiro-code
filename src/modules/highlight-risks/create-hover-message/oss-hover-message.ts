@@ -1,7 +1,7 @@
 import { OSSRisk } from "../../../types/risk";
 import { hasRemedy } from "../../remediate-risks/remediate-risks";
 import { getSeverityIcon } from "../utils";
-import { getEnvironmentData } from "../../../apiiro-rest-api-provider";
+import { getEnvironmentData } from "../../../services/apiiro-rest-api-provider";
 
 class OSSMessageBuilder {
   private message: string[] = [];

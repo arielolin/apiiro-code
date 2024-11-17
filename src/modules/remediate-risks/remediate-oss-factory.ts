@@ -190,11 +190,25 @@ class RequirementsTxtRemediation extends BaseRemediation {
     lineNumber: number,
   ): Promise<boolean> {
     const line = originalText.trim();
-    if (line.startsWith("#")) return false;
 
-    const packagePattern = new RegExp(
-      `^${depKey}(?:\\[.*?\\])?(?:==|>=|<=|~=|!=|>|<).+$`,
+    // Skip comments and empty lines
+    if (line.startsWith("#") || !line) {
+      return false;
+    }
+
+    // Extract just the package name from depKey (remove version if present)
+    const packageName = depKey.split(":")[0].trim();
+
+    // Package name can be case-insensitive
+    const escapedDepKey = packageName.replace(
+      /[-[\]{}()*+?.,\\^$|#\s]/g,
+      "\\$&",
     );
+    const packagePattern = new RegExp(
+      `^${escapedDepKey}(?:\\[.*?\\])?\\s*(?:~=|==|>=|<=|!=|>|<|===)\\s*[\\d\\w.*+!-]+(?:\\s*;.*)?(?:\\s*#.*)?$`,
+      "i",
+    );
+
     return packagePattern.test(line);
   }
 
@@ -203,11 +217,33 @@ class RequirementsTxtRemediation extends BaseRemediation {
     depKey: string,
     fixVersion: string,
   ): Promise<string> {
-    const extrasMatch = originalText.match(/^[^[\s]+(\[.*?\])?/);
-    const packageWithExtras = extrasMatch ? extrasMatch[0] : depKey;
-    const indentation = originalText.match(/^\s*/)?.[0] || "";
-    const versionOperator = originalText.match(/[~<>=]+=/)?.[0] || "==";
-    return `${indentation}${packageWithExtras}${versionOperator}${fixVersion}`;
+    // Extract just the package name from depKey (remove version if present)
+    const packageName = depKey.split(":")[0].trim();
+
+    // Match all components of a requirements.txt line
+    const parts = originalText.match(
+      /^(\s*)([^[\s]+)(\[.*?\])?(\s*)(~=|===|==|>=|<=|!=|>|<)(\s*)([^\s;#]+)(\s*(?:;.*)?(?:#.*)?)?$/,
+    );
+
+    if (!parts) {
+      return originalText;
+    }
+
+    const [
+      ,
+      indentation, // Leading whitespace
+      _packageName, // Original package name (ignored, using from depKey)
+      extras, // Optional extras in [...]
+      spaceAfterPkg, // Space between package and operator
+      operator, // Version operator
+      spaceAfterOp, // Space between operator and version
+      _version, // Original version (ignored, using fixVersion)
+      comments, // Optional environment markers and comments
+    ] = parts;
+
+    const packageWithExtras = extras ? `${packageName}${extras}` : packageName;
+
+    return `${indentation}${packageWithExtras}${spaceAfterPkg}${operator}${spaceAfterOp}${fixVersion}${comments || ""}`;
   }
 }
 
@@ -304,6 +340,9 @@ class PomXmlRemediation extends BaseRemediation {
       return `${indentation}<version>${fixVersion}</version>`;
     }
 
-    throw new Error("Could not locate appropriate position for version update");
+    vscode.window.showErrorMessage(
+      "Could not locate appropriate position for version update",
+    );
+    return "";
   }
 }

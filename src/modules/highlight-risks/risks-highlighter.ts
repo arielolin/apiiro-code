@@ -7,7 +7,6 @@ import {
   SASTRisk,
   SecretsRisk,
 } from "../../types/risk";
-import { detectLineChanges } from "../../services/git-service";
 import { getRelativeFilePath } from "../../utils/vs-code";
 import { Repository } from "../../types/repository";
 import { RiskRemediationTriggerCodeLensProvider } from "../remediate-risks/remediation-trigger-code-lense";
@@ -19,6 +18,7 @@ import { createSecretsMessage } from "./create-hover-message/secrets-hover-messa
 import { createDefaultMessage } from "./create-hover-message/default-hover-message";
 import { createSastHoverMessage } from "./create-hover-message/sast-hover-message";
 import { createApiHoverMessage } from "./create-hover-message/api-hover-message";
+import { detectLineChanges } from "../../services/diff-service";
 
 export class RiskHighlighter {
   private readonly decorationTypes: Map<
@@ -180,10 +180,14 @@ export class RiskHighlighter {
 
     try {
       const lineNumbers = risks.map((risk) => risk.sourceCode.lineNumber);
-      const lineChanges = await detectLineChanges(lineNumbers, repoData);
+      const lineChangesData = await detectLineChanges(lineNumbers, repoData);
+
+      if (lineChangesData[0]?.errors?.length) {
+        throw new Error(lineChangesData[0].errors.join(","));
+      }
 
       risks.forEach((risk, index) => {
-        const { hasChanged, newLineNum } = lineChanges[index];
+        const { hasChanged, newLineNum } = lineChangesData[index];
         const lineNumber = hasChanged
           ? -1
           : newLineNum || risk.sourceCode.lineNumber;
@@ -200,13 +204,7 @@ export class RiskHighlighter {
       });
     } catch (error) {
       vscode.window.showErrorMessage(`Error detecting line changes: ${error}`);
-      risks.forEach((risk) => {
-        const lineNumber = risk.sourceCode.lineNumber;
-        if (!groupedRisks.has(lineNumber)) {
-          groupedRisks.set(lineNumber, []);
-        }
-        groupedRisks.get(lineNumber)!.push(risk);
-      });
+      return new Map();
     }
 
     return groupedRisks;
