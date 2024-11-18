@@ -23,7 +23,6 @@ export class WorkspaceService {
     try {
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (!workspaceFolders?.length) {
-        vscode.window.showErrorMessage("Apiiro: No workspace folder found");
         return false;
       }
 
