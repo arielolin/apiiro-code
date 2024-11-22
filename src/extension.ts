@@ -5,6 +5,8 @@ import { Repository } from "./types/repository";
 import _ from "lodash";
 import { AuthService } from "./services/auth-service";
 import { WorkspaceService } from "./services/workspace-service";
+import { InventoryTreeProvider } from "./modules/inventory";
+import { openFileAtLine } from "./utils/vs-code";
 
 let filePanel: vscode.WebviewPanel | undefined;
 let repoData: Repository;
@@ -30,6 +32,27 @@ export async function activate(context: vscode.ExtensionContext) {
 
   repoData = workspaceInfo.repoData;
 
+  const inventoryProvider = new InventoryTreeProvider(repoData.key);
+  const inventoryView = vscode.window.createTreeView("inventoryExplorer", {
+    treeDataProvider: inventoryProvider,
+  });
+
+  // Register inventory commands
+  const refreshInventoryCommand = vscode.commands.registerCommand(
+    "inventory.refresh",
+    () => {
+      inventoryProvider.refresh();
+    },
+  );
+
+  const openFileCommand = vscode.commands.registerCommand(
+    "inventory.openFile",
+    async (filePath: string, lineNumber: number) => {
+      await openFileAtLine(filePath, lineNumber);
+    },
+  );
+
+  // Initialize Risk Highlighter
   const riskHighlighter = new RiskHighlighter(context);
 
   const highlightRisks = async (
@@ -73,7 +96,13 @@ export async function activate(context: vscode.ExtensionContext) {
     },
   );
 
-  context.subscriptions.push(highlightDisposable, remediateDisposable);
+  context.subscriptions.push(
+    highlightDisposable,
+    remediateDisposable,
+    refreshInventoryCommand,
+    openFileCommand,
+    inventoryView,
+  );
 
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(async (editor) => {
@@ -97,9 +126,13 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
   );
 
+  // Initial highlights for active editor
   if (vscode.window.activeTextEditor) {
     await highlightRisks(vscode.window.activeTextEditor, repoData);
   }
+
+  // Initial inventory data load
+  inventoryProvider.refresh();
 }
 
 export function deactivate() {

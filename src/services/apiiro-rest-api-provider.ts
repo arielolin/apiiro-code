@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosInstance } from "axios";
 import vscode from "vscode";
 import { decodeJwt } from "../utils/string";
 
@@ -36,4 +36,4 @@ function createAxiosInstance(path: string) {
 }
 
 export const createApiiroRestApiClient = (path: string) =>
-  createAxiosInstance(path);
+  createAxiosInstance(path) as AxiosInstance;

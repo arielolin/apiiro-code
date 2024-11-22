@@ -2,7 +2,6 @@
   "name": "apiiro-code",
   "displayName": "Apiiro Code",
   "description": "Find risks in your IDE",
-
   "publisher": "Apiiro",
   "icon": "images/icon.png",
   "version": "0.1.0",
@@ -17,7 +16,40 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": [],
+    "commands": [
+      {
+        "command": "inventory.refresh",
+        "title": "Refresh Inventory",
+        "icon": "$(refresh)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "inventory-explorer",
+          "title": "Apiiro Inventory",
+          "icon": "images/apiiro.svg"
+        }
+      ]
+    },
+    "views": {
+      "inventory-explorer": [
+        {
+          "id": "inventoryExplorer",
+          "name": "Inventory Items",
+          "icon": "images/apiiro.svg"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "inventory.refresh",
+          "when": "view == inventoryExplorer",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Apiiro Code",
       "properties": {
