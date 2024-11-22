@@ -1,45 +1,50 @@
-// Types
+// types/inventory.ts
+
 export interface SourceLocation {
   filePath: string;
   lineNumber: number;
   url: string;
 }
 
-export interface DependencyItem {
+// Base interface for common fields
+interface BaseItem {
   name: string;
+  entity: {
+    details: {
+      businessImpact: string;
+    };
+  };
+  sourceLocation: SourceLocation;
+}
+
+export interface DependencyItem extends BaseItem {
   version: string;
   type: string;
   scope: string;
   licenses: Array<{ name: string; url: string | null }>;
   insights: Array<{ name: string; reason: string }>;
-  sourceLocation: SourceLocation;
-  riskLevel: string;
 }
 
-export interface ApiItem {
-  name: string;
+export interface ApiItem extends BaseItem {
   endpoint: string;
   httpMethod: string;
   securityControls: string[];
   isPublic: boolean;
-  sourceLocation: SourceLocation;
   methodSignature: string;
 }
 
-export interface SensitiveDataItem {
+export interface SensitiveDataItem extends BaseItem {
   fieldName: string;
   className: string;
   types: string[];
   isExposed: boolean;
   writtenToLogs: boolean;
-  sourceLocation: SourceLocation;
 }
 
-export interface SecurityControlItem {
+export interface SecurityControlItem extends BaseItem {
   type: string;
   endpoint: string;
   httpMethod: string;
-  sourceLocation: SourceLocation;
 }
 
 export interface CategorizedInventory {

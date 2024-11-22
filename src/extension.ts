@@ -5,7 +5,7 @@ import { Repository } from "./types/repository";
 import _ from "lodash";
 import { AuthService } from "./services/auth-service";
 import { WorkspaceService } from "./services/workspace-service";
-import { InventoryTreeProvider } from "./modules/inventory";
+import { InventoryTreeProvider } from "./modules/inventory/inventory";
 import { openFileAtLine } from "./utils/vs-code";
 
 let filePanel: vscode.WebviewPanel | undefined;
@@ -33,6 +33,7 @@ export async function activate(context: vscode.ExtensionContext) {
   repoData = workspaceInfo.repoData;
 
   const inventoryProvider = new InventoryTreeProvider(repoData.key);
+  vscode.window.showInformationMessage(repoData.key);
   const inventoryView = vscode.window.createTreeView("inventoryExplorer", {
     treeDataProvider: inventoryProvider,
   });

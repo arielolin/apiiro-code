@@ -1,11 +1,14 @@
 import * as vscode from "vscode";
-import { inventoryService } from "../services/inventory-service";
+import {
+  InventoryService,
+  inventoryService,
+} from "../../services/inventory-service";
 import {
   ApiItem,
   CategorizedInventory,
   DependencyItem,
   SensitiveDataItem,
-} from "../types/inventory";
+} from "../../types/inventory";
 import { TreeItemCollapsibleState } from "vscode";
 
 export class InventoryTreeProvider
@@ -19,8 +22,57 @@ export class InventoryTreeProvider
   > = this._onDidChangeTreeData.event;
 
   private data: CategorizedInventory | undefined;
+  private service: InventoryService;
 
-  constructor(private repoKey: string) {}
+  constructor(private repoKey: string) {
+    this.service = InventoryService.getInstance();
+    this.setupControls();
+  }
+
+  private async setupControls() {
+    // Register sort command
+    vscode.commands.registerCommand("inventory.sort", async () => {
+      const sortOptions = ["name", "riskLevel"];
+      const sortBy = await vscode.window.showQuickPick(sortOptions, {
+        placeHolder: "Sort by...",
+      });
+      if (sortBy) {
+        const direction = await vscode.window.showQuickPick(["asc", "desc"], {
+          placeHolder: "Sort direction...",
+        });
+        if (direction) {
+          this.service.setControls({
+            sortBy: sortBy as "name" | "riskLevel",
+            sortDirection: direction as "asc" | "desc",
+          });
+          this.refresh();
+        }
+      }
+    });
+
+    vscode.commands.registerCommand("inventory.filter", async () => {
+      const riskLevels = ["Critical", "High", "Medium", "Low", "None"];
+      const currentFilter = this.service.getControls().riskLevelFilter;
+
+      // Create QuickPick items with checked state
+      const quickPickItems = riskLevels.map((level) => ({
+        label: level,
+        picked: currentFilter.includes(level),
+      }));
+
+      const selected = await vscode.window.showQuickPick(quickPickItems, {
+        placeHolder: "Select risk levels to show",
+        canPickMany: true,
+      });
+
+      if (selected) {
+        // Extract just the labels from selected items
+        const selectedLevels = selected.map((item) => item.label);
+        this.service.setControls({ riskLevelFilter: selectedLevels });
+        this.refresh();
+      }
+    });
+  }
 
   refresh(): void {
     this.data = undefined;
@@ -161,9 +213,9 @@ export class InventoryTreeProvider
     }
 
     // Add icon based on risk level
-    if (dep.riskLevel.toLowerCase() === "critical") {
+    if (dep.entity.details.businessImpact.toLowerCase() === "critical") {
       treeItem.iconPath = new vscode.ThemeIcon("error");
-    } else if (dep.riskLevel.toLowerCase() === "high") {
+    } else if (dep.entity.details.businessImpact.toLowerCase() === "high") {
       treeItem.iconPath = new vscode.ThemeIcon("warning");
     }
 

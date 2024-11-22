@@ -21,6 +21,16 @@
         "command": "inventory.refresh",
         "title": "Refresh Inventory",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "inventory.sort",
+        "title": "Sort Inventory Items",
+        "icon": "$(sort-precedence)"
+      },
+      {
+        "command": "inventory.filter",
+        "title": "Filter by Risk Level",
+        "icon": "$(filter)"
       }
     ],
     "viewsContainers": {
@@ -35,18 +45,28 @@
     "views": {
       "inventory-explorer": [
         {
+          "type": "tree",
           "id": "inventoryExplorer",
-          "name": "Inventory Items",
-          "icon": "images/apiiro.svg"
+          "name": "Inventory Items"
         }
       ]
     },
     "menus": {
       "view/title": [
         {
+          "command": "inventory.sort",
+          "when": "view == inventoryExplorer",
+          "group": "navigation@1"
+        },
+        {
+          "command": "inventory.filter",
+          "when": "view == inventoryExplorer",
+          "group": "navigation@2"
+        },
+        {
           "command": "inventory.refresh",
           "when": "view == inventoryExplorer",
-          "group": "navigation"
+          "group": "navigation@3"
         }
       ]
     },
@@ -56,6 +76,27 @@
         "apiiroCode.token": {
           "type": "string",
           "description": "API token for Apiiro"
+        },
+        "apiiroCode.inventory.defaultSort": {
+          "type": "string",
+          "enum": ["name", "riskLevel"],
+          "default": "name",
+          "description": "Default sort field for inventory items"
+        },
+        "apiiroCode.inventory.defaultSortDirection": {
+          "type": "string",
+          "enum": ["asc", "desc"],
+          "default": "asc",
+          "description": "Default sort direction for inventory items"
+        },
+        "apiiroCode.inventory.defaultRiskLevels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["Critical", "High", "Medium", "Low", "None"]
+          },
+          "default": ["Critical", "High", "Medium", "Low", "None"],
+          "description": "Default risk levels to show in inventory"
         }
       }
     }
