@@ -69,7 +69,7 @@ export function createApiHoverMessage(risk: APIRisk): string {
   const severityIcon = getSeverityIcon(risk.riskLevel);
   const details = parseAPIRiskDetails(risk);
 
-  return `### ${severityIcon} ${risk.riskLevel} severity risk: ${risk.ruleName}
+  return `### ${severityIcon}API ${risk.riskLevel} severity risk: ${risk.ruleName}
   
 **Apiiro Link:** [View in Apiiro](${getEnvironmentData().AppUrl}/risks?fl&trigger=${risk.id})
 

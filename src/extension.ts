@@ -5,8 +5,11 @@ import { Repository } from "./types/repository";
 import _ from "lodash";
 import { AuthService } from "./services/auth-service";
 import { WorkspaceService } from "./services/workspace-service";
-import { InventoryTreeProvider } from "./modules/inventory/inventory";
+
 import { openFileAtLine } from "./utils/vs-code";
+import { InventoryTreeProvider } from "./modules/apiiro-pane/inventory/inventory-tree";
+import { RisksTreeProvider } from "./modules/apiiro-pane/risks-pane/risks-tree";
+import path from "path";
 
 let filePanel: vscode.WebviewPanel | undefined;
 let repoData: Repository;
@@ -32,8 +35,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
   repoData = workspaceInfo.repoData;
 
-  const inventoryProvider = new InventoryTreeProvider(repoData.key);
-  vscode.window.showInformationMessage(repoData.key);
+  const inventoryProvider = new InventoryTreeProvider(repoData);
+
   const inventoryView = vscode.window.createTreeView("inventoryExplorer", {
     treeDataProvider: inventoryProvider,
   });
@@ -51,6 +54,54 @@ export async function activate(context: vscode.ExtensionContext) {
     async (filePath: string, lineNumber: number) => {
       await openFileAtLine(filePath, lineNumber);
     },
+  );
+  // Register all risks view
+  const risksProvider = new RisksTreeProvider(repoData);
+  vscode.window.registerTreeDataProvider("risksExplorer", risksProvider);
+
+  // Register the openFile command if not already registered
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "risks.openFile",
+      async (filePath: string, lineNumber: number) => {
+        try {
+          // If we have a workspace folder, try to resolve the file relative to it
+          let fullPath = filePath;
+          if (vscode.workspace.workspaceFolders?.length) {
+            const workspaceRoot =
+              vscode.workspace.workspaceFolders[0].uri.fsPath;
+            fullPath = path.join(workspaceRoot, filePath);
+          }
+
+          // Try to find the file
+          let fileUri: vscode.Uri;
+          try {
+            fileUri = vscode.Uri.file(fullPath);
+            await vscode.workspace.fs.stat(fileUri); // Check if file exists
+          } catch {
+            // If file not found, show error with path info for debugging
+            throw new Error(
+              `File not found: ${fullPath} (original path: ${filePath})`,
+            );
+          }
+
+          const document = await vscode.workspace.openTextDocument(fileUri);
+          const editor = await vscode.window.showTextDocument(document);
+
+          // Go to specific line
+          const position = new vscode.Position(lineNumber - 1, 0);
+          editor.selection = new vscode.Selection(position, position);
+          editor.revealRange(
+            new vscode.Range(position, position),
+            vscode.TextEditorRevealType.InCenter,
+          );
+        } catch (error) {
+          vscode.window.showErrorMessage(
+            `Failed to open file ${filePath},${lineNumber}: ${error}`,
+          );
+        }
+      },
+    ),
   );
 
   // Initialize Risk Highlighter

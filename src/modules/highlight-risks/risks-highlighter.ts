@@ -12,13 +12,14 @@ import { Repository } from "../../types/repository";
 import { RiskRemediationTriggerCodeLensProvider } from "../remediate-risks/remediation-trigger-code-lense";
 import { DiagnosticsHelper } from "./problems-panel";
 import { DecorationHelper } from "./decoration-helper";
-import { findRisksForFile } from "../../services/risk-service";
+
 import { createOSSMessage } from "./create-hover-message/oss-hover-message";
 import { createSecretsMessage } from "./create-hover-message/secrets-hover-message";
 import { createDefaultMessage } from "./create-hover-message/default-hover-message";
 import { createSastHoverMessage } from "./create-hover-message/sast-hover-message";
 import { createApiHoverMessage } from "./create-hover-message/api-hover-message";
 import { detectLineChanges } from "../../services/diff-service";
+import { findRisksForFile } from "../../services/file-risk-service";
 
 export class RiskHighlighter {
   private readonly decorationTypes: Map<

@@ -30,7 +30,7 @@ async function fetchRisksPage(
     ...(riskCategory !== "Api" && {
       "filters[RiskCategory]": [riskCategory],
     }),
-    //Avoing "Accepted" and "Autoignored"
+
     "filters[RiskLevel][0]": [riskLevels.Critical],
     "filters[RiskLevel][1]": [riskLevels.High],
     "filters[RiskLevel][2]": [riskLevels.Medium],
@@ -45,15 +45,15 @@ async function fetchRisksPage(
 
   let risks = response.data.items || [];
   let totalItemCount = response.data.paging.totalItemCount;
-  if (riskCategory === "Api")
-    if (riskCategory === "Api") {
-      risks = risks.filter(
-        (risk: Risk) =>
-          risk.riskCategory === "Entry Point Changes" ||
-          risk.riskCategory === "Sensitive Data",
-      );
-      totalItemCount = risks.length;
-    }
+
+  if (riskCategory === "Api") {
+    risks = risks.filter(
+      (risk: Risk) =>
+        risk.riskCategory === "Entry Point Changes" ||
+        risk.riskCategory === "Sensitive Data",
+    );
+    totalItemCount = risks.length;
+  }
 
   return {
     risks,
@@ -135,19 +135,14 @@ export async function findRisksForFile(
         .join("&");
     };
 
-    const [ossRisks, secretsRisks /*, sastRisks*/, apiRisks] =
-      await Promise.all([
-        fetchAllRisks(apiiroClient!, "OSS", params, paramsSerializer),
-        fetchAllRisks(apiiroClient!, "Secrets", params, paramsSerializer),
-        /*     fetchAllRisks(apiiroClient!, "SAST", params, paramsSerializer),*/
-        fetchAllRisks(apiiroClient!, "Api", params, paramsSerializer),
-      ]);
+    const [ossRisks, secretsRisks, sastRisks, apiRisks] = await Promise.all([
+      fetchAllRisks(apiiroClient!, "OSS", params, paramsSerializer),
+      fetchAllRisks(apiiroClient!, "Secrets", params, paramsSerializer),
+      fetchAllRisks(apiiroClient!, "SAST", params, paramsSerializer),
+      fetchAllRisks(apiiroClient!, "Api", params, paramsSerializer),
+    ]);
 
-    const allRisks = [
-      ...ossRisks,
-      ...secretsRisks,
-      /* ...sastRisks,*/ ...apiRisks,
-    ];
+    const allRisks = [...ossRisks, ...secretsRisks, ...sastRisks, ...apiRisks];
 
     cache.set(cacheKey, allRisks);
     return allRisks;

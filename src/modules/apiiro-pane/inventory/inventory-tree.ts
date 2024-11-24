@@ -2,14 +2,15 @@ import * as vscode from "vscode";
 import {
   InventoryService,
   inventoryService,
-} from "../../services/inventory-service";
+} from "../../../services/inventory-service";
 import {
   ApiItem,
   CategorizedInventory,
   DependencyItem,
   SensitiveDataItem,
-} from "../../types/inventory";
+} from "../../../types/inventory";
 import { TreeItemCollapsibleState } from "vscode";
+import { Repository } from "../../../types/repository";
 
 export class InventoryTreeProvider
   implements vscode.TreeDataProvider<InventoryTreeItem>
@@ -23,9 +24,13 @@ export class InventoryTreeProvider
 
   private data: CategorizedInventory | undefined;
   private service: InventoryService;
+  private title: string;
+  private description: string;
 
-  constructor(private repoKey: string) {
+  constructor(private repoData: Repository) {
     this.service = InventoryService.getInstance();
+    this.title = repoData.name;
+    this.description = repoData.url;
     this.setupControls();
   }
 
@@ -61,7 +66,7 @@ export class InventoryTreeProvider
       }));
 
       const selected = await vscode.window.showQuickPick(quickPickItems, {
-        placeHolder: "Select risk levels to show",
+        placeHolder: "Select business impact levels to show",
         canPickMany: true,
       });
 
@@ -86,7 +91,7 @@ export class InventoryTreeProvider
   async getChildren(element?: InventoryTreeItem): Promise<InventoryTreeItem[]> {
     if (!this.data) {
       try {
-        this.data = await inventoryService.getInventoryData(this.repoKey);
+        this.data = await inventoryService.getInventoryData(this.repoData.key);
       } catch (error) {
         vscode.window.showErrorMessage(`${error}`);
         return [];
@@ -94,8 +99,14 @@ export class InventoryTreeProvider
     }
 
     if (!element) {
-      // Root level - categories
+      // Add title and description at the root level
       return [
+        new InventoryTreeItem(
+          this.title,
+          this.description,
+          vscode.TreeItemCollapsibleState.None,
+          "title",
+        ),
         new InventoryTreeItem(
           "Dependencies",
           `(${this.data.dependencies.total})`,
@@ -212,13 +223,6 @@ export class InventoryTreeProvider
       treeItem.tooltip = `${dep.sourceLocation.filePath}:${dep.sourceLocation.lineNumber}`;
     }
 
-    // Add icon based on risk level
-    if (dep.entity.details.businessImpact.toLowerCase() === "critical") {
-      treeItem.iconPath = new vscode.ThemeIcon("error");
-    } else if (dep.entity.details.businessImpact.toLowerCase() === "high") {
-      treeItem.iconPath = new vscode.ThemeIcon("warning");
-    }
-
     return treeItem;
   }
 
@@ -283,10 +287,15 @@ class InventoryTreeItem extends vscode.TreeItem {
     public readonly label: string,
     public readonly description: string,
     public readonly collapsibleState: TreeItemCollapsibleState,
-    public readonly itemType: "category" | "item",
+    public readonly itemType: "title" | "category" | "item",
   ) {
     super(label, collapsibleState);
     this.description = description;
     this.contextValue = itemType;
+
+    // Add special styling for title
+    if (itemType === "title") {
+      this.iconPath = new vscode.ThemeIcon("git-branch");
+    }
   }
 }

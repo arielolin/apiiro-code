@@ -31,13 +31,18 @@
         "command": "inventory.filter",
         "title": "Filter by Risk Level",
         "icon": "$(filter)"
+      },
+      {
+        "command": "risks.refresh",
+        "title": "Refresh Risks",
+        "icon": "$(refresh)"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "inventory-explorer",
-          "title": "Apiiro Inventory",
+          "title": "Apiiro",
           "icon": "images/apiiro.svg"
         }
       ]
@@ -47,7 +52,12 @@
         {
           "type": "tree",
           "id": "inventoryExplorer",
-          "name": "Inventory Items"
+          "name": "Inventory"
+        },
+        {
+          "type": "tree",
+          "id": "risksExplorer",
+          "name": "Risks"
         }
       ]
     },
@@ -67,6 +77,11 @@
           "command": "inventory.refresh",
           "when": "view == inventoryExplorer",
           "group": "navigation@3"
+        },
+        {
+          "command": "risks.refresh",
+          "when": "view == risksExplorer",
+          "group": "navigation@1"
         }
       ]
     },
@@ -76,27 +91,6 @@
         "apiiroCode.token": {
           "type": "string",
           "description": "API token for Apiiro"
-        },
-        "apiiroCode.inventory.defaultSort": {
-          "type": "string",
-          "enum": ["name", "riskLevel"],
-          "default": "name",
-          "description": "Default sort field for inventory items"
-        },
-        "apiiroCode.inventory.defaultSortDirection": {
-          "type": "string",
-          "enum": ["asc", "desc"],
-          "default": "asc",
-          "description": "Default sort direction for inventory items"
-        },
-        "apiiroCode.inventory.defaultRiskLevels": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": ["Critical", "High", "Medium", "Low", "None"]
-          },
-          "default": ["Critical", "High", "Medium", "Low", "None"],
-          "description": "Default risk levels to show in inventory"
         }
       }
     }
