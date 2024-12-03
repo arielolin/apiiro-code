@@ -59,7 +59,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const risksProvider = new RisksTreeProvider(repoData);
   vscode.window.registerTreeDataProvider("risksExplorer", risksProvider);
 
-  // Register the openFile command if not already registered
+  // Register the openFile command
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "risks.openFile",
@@ -112,7 +112,7 @@ export async function activate(context: vscode.ExtensionContext) {
     repo: Repository,
   ) => {
     if (!preventHighlights) {
-      await riskHighlighter.highlightRisks(editor, repo);
+      await riskHighlighter.highlightRisksForActiveFile(editor, repo);
     }
   };
 
